@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package agm.attendance;
+
+service AttendanceService {
+  rpc GetAsistenciaAlumno(AlumnoMateriaRequest) returns (AsistenciaReply);
+  rpc GetEstadisticasAsistencia(MateriaIdRequest) returns (StatsReply);
+  rpc GetHistorialMateria(MateriaIdRequest) returns (MateriaAsistenciaReply);
+}
+
+message MateriaIdRequest {
+  int64 materia_id = 1;
+}
+
+message AlumnoMateriaRequest {
+  int64 alumno_id = 1;
+  int64 materia_id = 2;
+}
+
+message AsistenciaItem {
+  int64 sesion_id = 1;
+  string fecha = 2;
+  string estado = 3;
+}
+
+message AsistenciaReply {
+  repeated AsistenciaItem items = 1;
+}
+
+message StatsReply {
+  int64 total_sesiones = 1;
+  int64 asistencias = 2;
+  int64 retardos = 3;
+  double porcentaje = 4;
+}
+
+message MateriaAsistenciaItem {
+  int64 session_id = 1;
+  int64 student_id = 2;
+  string fecha = 3;
+  string estado = 4;
+}
+
+message MateriaAsistenciaReply {
+  repeated MateriaAsistenciaItem items = 1;
+}

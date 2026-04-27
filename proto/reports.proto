@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package agm.reports;
+
+service ReportsService {
+  rpc GenerateReport(GenerateReportRequest) returns (FileBytes);
+  rpc GetHistorialDocente(DocenteIdRequest) returns (StatsPeriodoReply);
+}
+
+message GenerateReportRequest {
+  string report_type = 1;
+  int64 materia_id = 2;
+  string format = 3;
+}
+
+message FileBytes {
+  bytes content = 1;
+  string filename = 2;
+  string mime_type = 3;
+}
+
+message DocenteIdRequest {
+  int64 docente_id = 1;
+}
+
+message StatsPeriodo {
+  string periodo = 1;
+  int64 materias = 2;
+  double promedio = 3;
+}
+
+message StatsPeriodoReply {
+  repeated StatsPeriodo items = 1;
+}

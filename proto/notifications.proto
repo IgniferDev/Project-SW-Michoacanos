@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package agm.notifications;
+
+service NotificationsService {
+  rpc SendBienvenida(BienvenidaRequest) returns (BoolReply);
+  rpc SendBajaNotif(BajaRequest) returns (BoolReply);
+  rpc SendCierreMateria(CierreMateriaRequest) returns (BoolReply);
+  rpc SendResetPassword(ResetPasswordRequest) returns (BoolReply);
+}
+
+message BienvenidaRequest {
+  int64 alumno_id = 1;
+  int64 materia_id = 2;
+  string email = 3;
+  string nombre = 4;
+  string temporary_password = 5;
+}
+
+message BajaRequest {
+  int64 alumno_id = 1;
+  int64 docente_id = 2;
+  string motivo = 3;
+}
+
+message CierreMateriaRequest {
+  int64 materia_id = 1;
+  string materia_nombre = 2;
+}
+
+message ResetPasswordRequest {
+  string email = 1;
+  string reset_token = 2;
+}
+
+message BoolReply {
+  bool ok = 1;
+  string message = 2;
+}

@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package agm.auth;
+
+service AuthService {
+  rpc ValidateToken(TokenRequest) returns (UserClaims);
+  rpc GetUserById(UserIdRequest) returns (UserProfile);
+  rpc CheckRole(RoleCheckRequest) returns (BoolReply);
+  rpc ProvisionUser(ProvisionUserRequest) returns (ProvisionUserResponse);
+}
+
+message TokenRequest {
+  string token = 1;
+}
+
+message UserIdRequest {
+  int64 user_id = 1;
+}
+
+message RoleCheckRequest {
+  int64 user_id = 1;
+  string role = 2;
+}
+
+message BoolReply {
+  bool ok = 1;
+  string message = 2;
+}
+
+message UserClaims {
+  bool valid = 1;
+  int64 user_id = 2;
+  string email = 3;
+  string role = 4;
+  int64 profile_id = 5;
+}
+
+message UserProfile {
+  int64 user_id = 1;
+  string email = 2;
+  string role = 3;
+  int64 profile_id = 4;
+  bool is_active = 5;
+}
+
+message ProvisionUserRequest {
+  string email = 1;
+  string role = 2;
+  int64 profile_id = 3;
+  string display_name = 4;
+}
+
+message ProvisionUserResponse {
+  bool created = 1;
+  int64 user_id = 2;
+  string email = 3;
+  string temporary_password = 4;
+}

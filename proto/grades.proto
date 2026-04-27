@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package agm.grades;
+
+service GradesService {
+  rpc GetConcentrado(MateriaIdRequest) returns (ConcentradoReply);
+  rpc GetPromedioAlumno(AlumnoMateriaRequest) returns (FloatReply);
+  rpc GetEstadisticasMateria(MateriaIdRequest) returns (StatsReply);
+}
+
+message MateriaIdRequest {
+  int64 materia_id = 1;
+}
+
+message AlumnoMateriaRequest {
+  int64 alumno_id = 1;
+  int64 materia_id = 2;
+}
+
+message FloatReply {
+  double value = 1;
+}
+
+message StatsReply {
+  int64 total_alumnos = 1;
+  double promedio_grupal = 2;
+  double aprobacion = 3;
+}
+
+message AlumnoCalif {
+  int64 alumno_id = 1;
+  string nombre = 2;
+  double promedio_real = 3;
+  int32 promedio_redondeado = 4;
+}
+
+message ConcentradoReply {
+  repeated AlumnoCalif items = 1;
+}

@@ -1,0 +1,125 @@
+services:
+  ms-auth:
+    build:
+      context: .
+      dockerfile: ms-auth/Dockerfile
+    env_file:
+      - ms-auth/.env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/auth.db
+    volumes:
+      - ./data/auth:/app/data
+    ports:
+      - "8011:8011"
+
+  ms-periods:
+    build:
+      context: .
+      dockerfile: ms-periods/Dockerfile
+    env_file:
+      - ms-periods/.env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/periods.db
+      AUTH_GRPC_TARGET: ms-auth:50051
+      ACADEMICS_GRPC_TARGET: ms-academics:50053
+    volumes:
+      - ./data/periods:/app/data
+    ports:
+      - "8012:8012"
+    depends_on:
+      - ms-auth
+      - ms-academics
+
+  ms-academics:
+    build:
+      context: .
+      dockerfile: ms-academics/Dockerfile
+    env_file:
+      - ms-academics/.env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/academics.db
+      AUTH_GRPC_TARGET: ms-auth:50051
+      PERIODS_GRPC_TARGET: ms-periods:50052
+      NOTIFICATIONS_GRPC_TARGET: ms-notifications:50056
+    volumes:
+      - ./data/academics:/app/data
+    ports:
+      - "8013:8013"
+    depends_on:
+      - ms-auth
+      - ms-notifications
+
+  ms-grades:
+    build:
+      context: .
+      dockerfile: ms-grades/Dockerfile
+    env_file:
+      - ms-grades/.env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/grades.db
+      AUTH_GRPC_TARGET: ms-auth:50051
+      PERIODS_GRPC_TARGET: ms-periods:50052
+      ACADEMICS_GRPC_TARGET: ms-academics:50053
+    volumes:
+      - ./data/grades:/app/data
+    ports:
+      - "8014:8014"
+    depends_on:
+      - ms-auth
+      - ms-periods
+      - ms-academics
+
+  ms-attendance:
+    build:
+      context: .
+      dockerfile: ms-attendance/Dockerfile
+    env_file:
+      - ms-attendance/.env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/attendance.db
+      AUTH_GRPC_TARGET: ms-auth:50051
+      ACADEMICS_GRPC_TARGET: ms-academics:50053
+    volumes:
+      - ./data/attendance:/app/data
+    ports:
+      - "8015:8015"
+    depends_on:
+      - ms-auth
+      - ms-academics
+
+  ms-notifications:
+    build:
+      context: .
+      dockerfile: ms-notifications/Dockerfile
+    env_file:
+      - ms-notifications/.env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/notifications.db
+    volumes:
+      - ./data/notifications:/app/data
+    ports:
+      - "8016:8016"
+
+  ms-reports:
+    build:
+      context: .
+      dockerfile: ms-reports/Dockerfile
+    env_file:
+      - ms-reports/.env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/reports.db
+      AUTH_GRPC_TARGET: ms-auth:50051
+      PERIODS_GRPC_TARGET: ms-periods:50052
+      ACADEMICS_GRPC_TARGET: ms-academics:50053
+      GRADES_GRPC_TARGET: ms-grades:50054
+      ATTENDANCE_GRPC_TARGET: ms-attendance:50055
+    volumes:
+      - ./data/reports:/app/data
+    ports:
+      - "8017:8017"
+    depends_on:
+      - ms-auth
+      - ms-periods
+      - ms-academics
+      - ms-grades
+      - ms-attendance
