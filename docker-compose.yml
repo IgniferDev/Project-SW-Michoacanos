@@ -1,16 +1,44 @@
 services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: agm
+      POSTGRES_PASSWORD: agm_dev_password
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agm -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@agm.local
+      PGADMIN_DEFAULT_PASSWORD: Admin123!
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   ms-auth:
     build:
       context: .
       dockerfile: ms-auth/Dockerfile
     env_file:
       - ms-auth/.env.example
-    environment:
-      DATABASE_URL: sqlite:////app/data/auth.db
-    volumes:
-      - ./data/auth:/app/data
     ports:
       - "8011:8011"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   ms-periods:
     build:
@@ -18,17 +46,15 @@ services:
       dockerfile: ms-periods/Dockerfile
     env_file:
       - ms-periods/.env.example
-    environment:
-      DATABASE_URL: sqlite:////app/data/periods.db
-      AUTH_GRPC_TARGET: ms-auth:50051
-      ACADEMICS_GRPC_TARGET: ms-academics:50053
-    volumes:
-      - ./data/periods:/app/data
     ports:
       - "8012:8012"
     depends_on:
-      - ms-auth
-      - ms-academics
+      postgres:
+        condition: service_healthy
+      ms-auth:
+        condition: service_started
+      ms-academics:
+        condition: service_started
 
   ms-academics:
     build:
@@ -36,18 +62,15 @@ services:
       dockerfile: ms-academics/Dockerfile
     env_file:
       - ms-academics/.env.example
-    environment:
-      DATABASE_URL: sqlite:////app/data/academics.db
-      AUTH_GRPC_TARGET: ms-auth:50051
-      PERIODS_GRPC_TARGET: ms-periods:50052
-      NOTIFICATIONS_GRPC_TARGET: ms-notifications:50056
-    volumes:
-      - ./data/academics:/app/data
     ports:
       - "8013:8013"
     depends_on:
-      - ms-auth
-      - ms-notifications
+      postgres:
+        condition: service_healthy
+      ms-auth:
+        condition: service_started
+      ms-notifications:
+        condition: service_started
 
   ms-grades:
     build:
@@ -55,19 +78,17 @@ services:
       dockerfile: ms-grades/Dockerfile
     env_file:
       - ms-grades/.env.example
-    environment:
-      DATABASE_URL: sqlite:////app/data/grades.db
-      AUTH_GRPC_TARGET: ms-auth:50051
-      PERIODS_GRPC_TARGET: ms-periods:50052
-      ACADEMICS_GRPC_TARGET: ms-academics:50053
-    volumes:
-      - ./data/grades:/app/data
     ports:
       - "8014:8014"
     depends_on:
-      - ms-auth
-      - ms-periods
-      - ms-academics
+      postgres:
+        condition: service_healthy
+      ms-auth:
+        condition: service_started
+      ms-periods:
+        condition: service_started
+      ms-academics:
+        condition: service_started
 
   ms-attendance:
     build:
@@ -75,17 +96,15 @@ services:
       dockerfile: ms-attendance/Dockerfile
     env_file:
       - ms-attendance/.env.example
-    environment:
-      DATABASE_URL: sqlite:////app/data/attendance.db
-      AUTH_GRPC_TARGET: ms-auth:50051
-      ACADEMICS_GRPC_TARGET: ms-academics:50053
-    volumes:
-      - ./data/attendance:/app/data
     ports:
       - "8015:8015"
     depends_on:
-      - ms-auth
-      - ms-academics
+      postgres:
+        condition: service_healthy
+      ms-auth:
+        condition: service_started
+      ms-academics:
+        condition: service_started
 
   ms-notifications:
     build:
@@ -93,12 +112,11 @@ services:
       dockerfile: ms-notifications/Dockerfile
     env_file:
       - ms-notifications/.env.example
-    environment:
-      DATABASE_URL: sqlite:////app/data/notifications.db
-    volumes:
-      - ./data/notifications:/app/data
     ports:
       - "8016:8016"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   ms-reports:
     build:
@@ -106,20 +124,21 @@ services:
       dockerfile: ms-reports/Dockerfile
     env_file:
       - ms-reports/.env.example
-    environment:
-      DATABASE_URL: sqlite:////app/data/reports.db
-      AUTH_GRPC_TARGET: ms-auth:50051
-      PERIODS_GRPC_TARGET: ms-periods:50052
-      ACADEMICS_GRPC_TARGET: ms-academics:50053
-      GRADES_GRPC_TARGET: ms-grades:50054
-      ATTENDANCE_GRPC_TARGET: ms-attendance:50055
-    volumes:
-      - ./data/reports:/app/data
     ports:
       - "8017:8017"
     depends_on:
-      - ms-auth
-      - ms-periods
-      - ms-academics
-      - ms-grades
-      - ms-attendance
+      postgres:
+        condition: service_healthy
+      ms-auth:
+        condition: service_started
+      ms-periods:
+        condition: service_started
+      ms-academics:
+        condition: service_started
+      ms-grades:
+        condition: service_started
+      ms-attendance:
+        condition: service_started
+
+volumes:
+  postgres_data:

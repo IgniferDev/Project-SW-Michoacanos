@@ -4,6 +4,7 @@ grpcio==1.75.1
 grpcio-tools==1.75.1
 protobuf==6.32.1
 sqlalchemy==2.0.43
+psycopg[binary]==3.2.9
 pydantic-settings==2.11.0
 python-multipart==0.0.20
 PyJWT==2.10.1

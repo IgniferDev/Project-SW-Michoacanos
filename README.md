@@ -14,7 +14,7 @@ Primera entrega funcional del backend del proyecto **AGM - Academic Grade Manage
 - `proto/`: contratos gRPC compartidos.
 - `proto_generated/`: codigo generado desde `.proto`.
 
-Cada microservicio corre en su propio puerto REST y en su propio puerto gRPC, con base SQLite independiente por servicio para desarrollo local. La estructura ya esta lista para migrar a PostgreSQL en una siguiente iteracion.
+Cada microservicio corre en su propio puerto REST y en su propio puerto gRPC. En Docker, el stack ya usa PostgreSQL con una base independiente por servicio dentro de la misma instancia (`agm_auth_db`, `agm_periods_db`, `agm_academics_db`, `agm_grades_db`, `agm_attendance_db`, `agm_notifications_db`, `agm_reports_db`). Si corres sin Docker, el codigo conserva SQLite como fallback local para desarrollo rapido.
 
 ## Puertos
 
@@ -69,6 +69,24 @@ $env:AGM_PYTHON="C:\ruta\a\python.exe"
 ```powershell
 docker compose up --build
 ```
+
+Si ya habias levantado una version previa del stack, te conviene recrear limpio para que se creen correctamente las bases PostgreSQL:
+
+```powershell
+docker compose down -v
+docker compose up --build
+```
+
+## PostgreSQL visual
+
+- PostgreSQL: `localhost:5432`
+- Usuario: `agm`
+- Password: `agm_dev_password`
+- pgAdmin: [http://127.0.0.1:5050](http://127.0.0.1:5050)
+- Login pgAdmin: `admin@agm.local`
+- Password pgAdmin: `Admin123!`
+
+Desde pgAdmin puedes registrar el servidor `postgres` o `host.docker.internal` segun desde donde te conectes y revisar que cada microservicio tiene su propia base separada.
 
 ## Flujo minimo de prueba
 
