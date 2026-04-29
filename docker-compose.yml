@@ -19,21 +19,30 @@ services:
   pgadmin:
     image: dpage/pgadmin4:9
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@agm.local
+      PGADMIN_DEFAULT_EMAIL: admin@agm.com
       PGADMIN_DEFAULT_PASSWORD: Admin123!
-      PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
       - "5050:80"
     depends_on:
       postgres:
         condition: service_healthy
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   ms-auth:
     build:
       context: .
       dockerfile: ms-auth/Dockerfile
     env_file:
-      - ms-auth/.env.example
+      - ms-auth/.env
     ports:
       - "8011:8011"
     depends_on:
@@ -45,7 +54,7 @@ services:
       context: .
       dockerfile: ms-periods/Dockerfile
     env_file:
-      - ms-periods/.env.example
+      - ms-periods/.env
     ports:
       - "8012:8012"
     depends_on:
@@ -61,7 +70,7 @@ services:
       context: .
       dockerfile: ms-academics/Dockerfile
     env_file:
-      - ms-academics/.env.example
+      - ms-academics/.env
     ports:
       - "8013:8013"
     depends_on:
@@ -77,7 +86,7 @@ services:
       context: .
       dockerfile: ms-grades/Dockerfile
     env_file:
-      - ms-grades/.env.example
+      - ms-grades/.env
     ports:
       - "8014:8014"
     depends_on:
@@ -95,11 +104,13 @@ services:
       context: .
       dockerfile: ms-attendance/Dockerfile
     env_file:
-      - ms-attendance/.env.example
+      - ms-attendance/.env
     ports:
       - "8015:8015"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       ms-auth:
         condition: service_started
@@ -111,7 +122,7 @@ services:
       context: .
       dockerfile: ms-notifications/Dockerfile
     env_file:
-      - ms-notifications/.env.example
+      - ms-notifications/.env
     ports:
       - "8016:8016"
     depends_on:
@@ -123,7 +134,7 @@ services:
       context: .
       dockerfile: ms-reports/Dockerfile
     env_file:
-      - ms-reports/.env.example
+      - ms-reports/.env
     ports:
       - "8017:8017"
     depends_on:

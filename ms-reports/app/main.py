@@ -28,7 +28,14 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-reports"
     rest_port: int = 8017
     grpc_port: int = 50057
-    database_url: str = "sqlite:///./data/reports.db"
+    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Reportes
+    database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_reports_db"
+    
+    # El agregador necesita conocer las direcciones gRPC de casi todo el sistema
+    periods_grpc_target: str = "ms-periods:50052"
+    grades_grpc_target: str = "ms-grades:50054"
+    attendance_grpc_target: str = "ms-attendance:50055"
+    academics_grpc_target: str = "ms-academics:50053"
 
 
 class ReportLog(Base):

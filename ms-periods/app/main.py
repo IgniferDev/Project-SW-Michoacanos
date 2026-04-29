@@ -24,7 +24,10 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-periods"
     rest_port: int = 8012
     grpc_port: int = 50052
-    database_url: str = "sqlite:///./data/periods.db"
+    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Periodos
+    database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_periods_db"
+    # Ruta interna para pedirle a MS-3 el ID de los docentes al importar el PDF
+    academics_grpc_target: str = "ms-academics:50053"
 
 
 class Period(Base):

@@ -30,11 +30,14 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-auth"
     rest_port: int = 8011
     grpc_port: int = 50051
-    database_url: str = "sqlite:///./data/auth.db"
+    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Auth en PostgreSQL
+    database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_auth_db"
     jwt_secret: str = "change-me-auth-secret"
     jwt_exp_minutes: int = 120
     admin_email: str = "admin@agm.local"
     admin_password: str = "Admin123!"
+    # Ruta interna para pedirle a MS-6 que envíe correos
+    notifications_grpc_target: str = "ms-notifications:50056"
 
 
 class User(Base):

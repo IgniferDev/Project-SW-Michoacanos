@@ -21,7 +21,10 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-notifications"
     rest_port: int = 8016
     grpc_port: int = 50056
-    database_url: str = "sqlite:///./data/notifications.db"
+    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Notificaciones
+    database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_notifications_db"
+    
+    # Credenciales SMTP (vacías por defecto para desarrollo local)
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""

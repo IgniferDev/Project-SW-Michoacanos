@@ -24,8 +24,14 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-attendance"
     rest_port: int = 8015
     grpc_port: int = 50055
-    database_url: str = "sqlite:///./data/attendance.db"
-    qr_secret: str = "change-me-attendance-secret"
+    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Asistencias
+    database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_attendance_db"
+    
+    qr_secret: str = "tu_super_secreto_para_buap_agm_2026"
+    academics_grpc_target: str = "ms-academics:50053"
+    
+    # Dejamos la puerta abierta para integrar Redis en nuestra fase de pulido
+    redis_url: str = "redis://redis:6379/0"
 
 
 class AttendanceSession(Base):

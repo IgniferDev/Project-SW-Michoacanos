@@ -26,7 +26,12 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-grades"
     rest_port: int = 8014
     grpc_port: int = 50054
-    database_url: str = "sqlite:///./data/grades.db"
+    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Calificaciones
+    database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_grades_db"
+    
+    # Rutas internas para comunicarse con otros microservicios
+    periods_grpc_target: str = "ms-periods:50052"
+    academics_grpc_target: str = "ms-academics:50053"
 
 
 class WeightCategory(Base):
