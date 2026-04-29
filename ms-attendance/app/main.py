@@ -3,6 +3,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import grpc
+import redis
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -24,13 +25,10 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-attendance"
     rest_port: int = 8015
     grpc_port: int = 50055
-    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Asistencias
     database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_attendance_db"
     
     qr_secret: str = "tu_super_secreto_para_buap_agm_2026"
     academics_grpc_target: str = "ms-academics:50053"
-    
-    # Dejamos la puerta abierta para integrar Redis en nuestra fase de pulido
     redis_url: str = "redis://redis:6379/0"
 
 
@@ -172,6 +170,10 @@ def startup_event() -> None:
     Base.metadata.create_all(session_factory.kw["bind"])
     app.state.settings = settings
     app.state.session_factory = session_factory
+    
+    # NUEVO: Inicializar cliente Redis
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    
     app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
         settings.grpc_port,
         lambda server: attendance_pb2_grpc.add_AttendanceServiceServicer_to_server(
@@ -205,6 +207,10 @@ def start_session(payload: StartSessionPayload, request: Request, user=Depends(r
         )
         session.add(attendance_session)
         session.flush()
+        
+        # NUEVO: Guardar en Redis con expiración de 10 minutos (600 segundos)
+        request.app.state.redis.setex(f"session:{attendance_session.id}", 600, str(payload.materia_id))
+
         return ok(
             {
                 "session_id": attendance_session.id,
@@ -223,40 +229,37 @@ def generate_qr(
     session_id: int = Query(...),
     user=Depends(require_roles("alumno")),
 ) -> dict:
-    session_factory = request.app.state.session_factory
-    with session_scope(session_factory) as session:
-        attendance_session = session.get(AttendanceSession, session_id)
-        if attendance_session is None or attendance_session.materia_id != materia_id:
-            raise HTTPException(status_code=404, detail="Sesión no encontrada")
-        if attendance_session.status != "abierta" or attendance_session.closes_at < now_utc():
-            raise HTTPException(status_code=400, detail="La sesión ya está cerrada")
-        payload_time = int(now_utc().timestamp())
-        token = build_qr_token(request.app.state.settings.qr_secret, user["profile_id"], materia_id, session_id, payload_time)
-        return ok({"token": token, "qr_png_base64": qr_png_base64(token), "issued_at": payload_time})
+    # NUEVO: Validación en microsegundos directo desde la memoria caché
+    active_materia = request.app.state.redis.get(f"session:{session_id}")
+    if not active_materia or int(active_materia) != materia_id:
+        raise HTTPException(status_code=400, detail="La sesión no existe o ya expiró")
+
+    payload_time = int(now_utc().timestamp())
+    token = build_qr_token(request.app.state.settings.qr_secret, user["profile_id"], materia_id, session_id, payload_time)
+    return ok({"token": token, "qr_png_base64": qr_png_base64(token), "issued_at": payload_time})
 
 
 @app.post("/asistencias/registrar")
 def register_attendance(payload: RegisterAttendancePayload, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
     data = decode_qr_token(request.app.state.settings.qr_secret, payload.token)
+    
+    # 1. Validar en Redis que la sesión siga viva
+    active_materia = request.app.state.redis.get(f"session:{data['session_id']}")
+    if not active_materia:
+        raise HTTPException(status_code=400, detail="La sesión expiró o está cerrada")
+        
+    # 2. Control anti-duplicados ultrarrápido con Redis
+    duplicate_key = f"attendance:{data['session_id']}:{data['alumno_id']}"
+    if request.app.state.redis.get(duplicate_key):
+        raise HTTPException(status_code=400, detail="El QR ya fue utilizado en esta sesión")
+
+    students = get_students_map(request.app.state.settings.academics_grpc_target, data["materia_id"])
+    if data["alumno_id"] not in students:
+        raise HTTPException(status_code=400, detail="Alumno no inscrito en la materia")
+
     session_factory = request.app.state.session_factory
     with session_scope(session_factory) as session:
         attendance_session = session.get(AttendanceSession, data["session_id"])
-        if attendance_session is None or attendance_session.status != "abierta":
-            raise HTTPException(status_code=404, detail="Sesión no encontrada o cerrada")
-        if attendance_session.closes_at < now_utc():
-            attendance_session.status = "cerrada"
-            raise HTTPException(status_code=400, detail="La sesión expiró")
-        students = get_students_map(request.app.state.settings.academics_grpc_target, data["materia_id"])
-        if data["alumno_id"] not in students:
-            raise HTTPException(status_code=400, detail="Alumno no inscrito en la materia")
-        existing = session.scalar(
-            select(AttendanceRecord).where(
-                AttendanceRecord.session_id == data["session_id"],
-                AttendanceRecord.student_id == data["alumno_id"],
-            )
-        )
-        if existing is not None:
-            raise HTTPException(status_code=400, detail="El QR ya fue utilizado en esta sesión")
         minutes = (now_utc() - attendance_session.started_at).total_seconds() / 60
         estado = "Presente" if minutes <= 5 else "Retardo"
         record = AttendanceRecord(
@@ -266,18 +269,24 @@ def register_attendance(payload: RegisterAttendancePayload, request: Request, us
             estado=estado,
         )
         session.add(record)
+        
+        # 3. Registrar el "candado" temporal en Redis para evitar doble escaneo
+        request.app.state.redis.setex(duplicate_key, 600, "1")
+
         return ok({"estado": estado, "alumno_id": data["alumno_id"]}, "Asistencia registrada")
 
 
 @app.delete("/sesiones/{session_id}/cerrar")
 def close_session(session_id: int, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
+    # NUEVO: Borrar la sesión activa de la memoria inmediatamente
+    request.app.state.redis.delete(f"session:{session_id}")
+    
     session_factory = request.app.state.session_factory
     with session_scope(session_factory) as session:
         attendance_session = session.get(AttendanceSession, session_id)
-        if attendance_session is None:
-            raise HTTPException(status_code=404, detail="Sesión no encontrada")
-        attendance_session.status = "cerrada"
-        return ok(None, "Sesión cerrada")
+        if attendance_session is not None:
+            attendance_session.status = "cerrada"
+    return ok(None, "Sesión cerrada")
 
 
 @app.get("/asistencias/{materia_id}/hoy")
