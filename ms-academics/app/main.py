@@ -132,19 +132,40 @@ def parse_teacher_pdf(raw_text: str) -> list[dict]:
 
 def parse_students_from_pdf(raw_text: str) -> list[dict]:
     flat = normalize_spaces(raw_text.replace("\n", " "))
+    
     pattern = re.compile(
-        r"\d+\s+([A-ZÁÉÍÓÚÑ ,.\-]+?)\s+(\d{9})\s+\*\*Inscrito por Web\*\*\s+(Licenciatura|Posgrado)",
+        r"([A-ZÁÉÍÓÚÑ ,.\-]+?)\s*(\d{9})\s*\**Inscrito por Web\**\s*(Licenciatura|Posgrado)",
         flags=re.IGNORECASE,
     )
+    
+    email_pattern = re.compile(r"([a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,})", flags=re.IGNORECASE)
+    all_emails = email_pattern.findall(flat)
+    
+    # 1. Filtrar solo correos de alumnos
+    raw_student_emails = [e.lower() for e in all_emails if "alumno" in e.lower()]
+    
+    # 2. Deduplicar preservando el orden. ¡Esto destruye los duplicados y los botones globales!
+    student_emails = []
+    for e in raw_student_emails:
+        if e not in student_emails:
+            student_emails.append(e)
+    
     rows = []
-    for match in pattern.finditer(flat):
-        name = normalize_spaces(match.group(1)).title()
+    for i, match in enumerate(pattern.finditer(flat)):
+        name = normalize_spaces(match.group(1)).strip().title()
+        matricula = match.group(2)
+        nivel = match.group(3).title()
+        
+        # Emparejamiento perfecto de 1 a 1
+        assigned_email = student_emails[i] if i < len(student_emails) else f"{matricula}@alumno.agm.local"
+        
         rows.append(
             {
                 "nombre": name,
-                "matricula": match.group(2),
+                "matricula": matricula,
                 "status": "Inscrito por Web",
-                "nivel": match.group(3).title(),
+                "nivel": nivel,
+                "email": assigned_email
             }
         )
     return rows

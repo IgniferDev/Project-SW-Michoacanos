@@ -30,4 +30,33 @@ async def resolve_input_file(
 
 def extract_pdf_text(path: Path) -> str:
     reader = PdfReader(str(path))
-    return "\n".join((page.extract_text() or "") for page in reader.pages)
+    full_text = []
+
+    for page in reader.pages:
+        page_text = page.extract_text() or ""
+        
+        # Extracción segura de enlaces (evita el Error 500)
+        try:
+            if "/Annots" in page:
+                annots = page["/Annots"]
+                # Resolvemos la referencia indirecta si existe
+                if hasattr(annots, "get_object"):
+                    annots = annots.get_object()
+                
+                # Verificamos que sea una lista antes de iterar
+                if isinstance(annots, list):
+                    for annot in annots:
+                        if hasattr(annot, "get_object"):
+                            annot_obj = annot.get_object()
+                            if "/A" in annot_obj and "/URI" in annot_obj["/A"]:
+                                uri = str(annot_obj["/A"]["/URI"])
+                                if uri.startswith("mailto:"):
+                                    email = uri.replace("mailto:", "").strip()
+                                    page_text += f" {email} "
+        except Exception:
+            # Si hay un error estructural en los enlaces de la página, lo ignoramos y seguimos
+            pass
+
+        full_text.append(page_text)
+
+    return "\n".join(full_text)
