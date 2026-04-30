@@ -28,10 +28,8 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-reports"
     rest_port: int = 8017
     grpc_port: int = 50057
-    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Reportes
     database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_reports_db"
-    
-    # El agregador necesita conocer las direcciones gRPC de casi todo el sistema
+
     periods_grpc_target: str = "ms-periods:50052"
     grades_grpc_target: str = "ms-grades:50054"
     attendance_grpc_target: str = "ms-attendance:50055"
@@ -66,6 +64,12 @@ def get_attendance_history(target: str, materia_id: int):
         return list(stub.GetHistorialMateria(attendance_pb2.MateriaIdRequest(materia_id=materia_id)).items)
 
 
+def get_students(target: str, materia_id: int):
+    with grpc.insecure_channel(target) as channel:
+        stub = academics_pb2_grpc.AcademicsServiceStub(channel)
+        return list(stub.GetAlumnosByMateria(academics_pb2.MateriaIdRequest(materia_id=materia_id)).items)
+
+
 def build_grades_xlsx(subject, rows: list) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
@@ -81,16 +85,56 @@ def build_grades_xlsx(subject, rows: list) -> bytes:
     return output.getvalue()
 
 
-def build_attendance_xlsx(subject, rows: list) -> bytes:
+def build_attendance_matrix(records: list, students: list) -> tuple[list[str], list[list]]:
+    # Extraer sesiones únicas (ID -> Fecha en formato YYYY-MM-DD)
+    unique_sessions = {}
+    for r in records:
+        if r.session_id not in unique_sessions:
+            unique_sessions[r.session_id] = r.fecha.split("T")[0]
+    
+    # Ordenar sesiones cronológicamente
+    sorted_sessions = sorted(unique_sessions.items(), key=lambda x: (x[1], x[0]))
+    
+    # Mapa de asistencias: map[student_id][session_id] = estado
+    attendance_map = {}
+    for r in records:
+        if r.student_id not in attendance_map:
+            attendance_map[r.student_id] = {}
+        attendance_map[r.student_id][r.session_id] = r.estado
+
+    # Construir encabezados dinámicos
+    headers = ["Matrícula", "Nombre Alumno"] + [date for sid, date in sorted_sessions]
+    
+    # Ordenar alumnos alfabéticamente
+    sorted_students = sorted(students, key=lambda s: s.nombre)
+    
+    # Construir matriz de datos evaluando la regla: 1, R o 0
+    rows = []
+    for student in sorted_students:
+        row = [student.matricula, student.nombre]
+        for sid, date in sorted_sessions:
+            estado = attendance_map.get(student.alumno_id, {}).get(sid)
+            if estado == "Presente":
+                row.append("1")
+            elif estado == "Retardo":
+                row.append("R")
+            else:
+                row.append("0")
+        rows.append(row)
+        
+    return headers, rows
+
+
+def build_attendance_xlsx(subject, headers: list, rows: list) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Asistencias"
     sheet.append(["Materia", subject.nombre])
     sheet.append(["NRC", subject.nrc])
     sheet.append([])
-    sheet.append(["Sesión", "Alumno ID", "Fecha", "Estado"])
+    sheet.append(headers)
     for row in rows:
-        sheet.append([row.session_id, row.student_id, row.fecha, row.estado])
+        sheet.append(row)
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()
@@ -144,16 +188,19 @@ class ReportsGrpcService(reports_pb2_grpc.ReportsServiceServicer):
                 filename=f"calificaciones_{request.materia_id}.xlsx",
                 mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
+        
+        # Generación dinámica de matriz de asistencias
         subject = get_subject(self.settings.periods_grpc_target, request.materia_id)
-        rows = get_attendance_history(self.settings.attendance_grpc_target, request.materia_id)
+        records = get_attendance_history(self.settings.attendance_grpc_target, request.materia_id)
+        students = get_students(self.settings.academics_grpc_target, request.materia_id)
+        
+        headers, data_rows = build_attendance_matrix(records, students)
+
         if request.format == "pdf":
-            content = build_pdf(
-                f"Asistencias {subject.nombre}",
-                ["Sesión", "Alumno ID", "Fecha", "Estado"],
-                [[row.session_id, row.student_id, row.fecha, row.estado] for row in rows],
-            )
+            content = build_pdf(f"Asistencias {subject.nombre}", headers, data_rows)
             return reports_pb2.FileBytes(content=content, filename=f"asistencias_{request.materia_id}.pdf", mime_type="application/pdf")
-        content = build_attendance_xlsx(subject, rows)
+        
+        content = build_attendance_xlsx(subject, headers, data_rows)
         return reports_pb2.FileBytes(
             content=content,
             filename=f"asistencias_{request.materia_id}.xlsx",
