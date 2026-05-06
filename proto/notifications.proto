@@ -18,9 +18,13 @@ message BienvenidaRequest {
 }
 
 message BajaRequest {
-  int64 alumno_id = 1;
-  int64 docente_id = 2;
+  int32 alumno_id = 1;
+  int32 docente_id = 2;
   string motivo = 3;
+  string docente_email = 4;
+  string alumno_nombre = 5;   // <-- NUEVO
+  string materia_nombre = 6;  // <-- NUEVO
+  int32 materia_id = 7;       // <-- NUEVO
 }
 
 message CierreMateriaRequest {

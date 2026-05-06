@@ -542,11 +542,18 @@ async def import_students(
 def list_students_by_subject(
     materia_id: int,
     request: Request,
+    incluir_bajas: bool = Query(False), # Nuestro nuevo interruptor
     user=Depends(require_roles("admin", "docente", "alumno")),
 ) -> dict:
     session_factory = request.app.state.session_factory
     with session_scope(session_factory) as session:
-        enrollments = session.scalars(select(Enrollment).where(Enrollment.materia_id == materia_id)).all()
+        query = select(Enrollment).where(Enrollment.materia_id == materia_id)
+        
+        # Ocultamos a los inactivos por defecto para limpiar el pase de lista
+        if not incluir_bajas:
+            query = query.where(Enrollment.activo == True)
+            
+        enrollments = session.scalars(query).all()
         rows = []
         for enrollment in enrollments:
             student = session.get(Student, enrollment.student_id)
@@ -580,6 +587,15 @@ def baja_student(
             with grpc.insecure_channel(request.app.state.settings.periods_grpc_target) as channel:
                 stub = periods_pb2_grpc.PeriodsServiceStub(channel)
                 materia = stub.GetMateriaById(periods_pb2.MateriaIdRequest(materia_id=materia_id))
+            
+            # Consultamos al alumno para sacar su nombre
+            student = session.get(Student, alumno_id)
+            nombre_alumno = student.nombre if student else f"ID {alumno_id}"
+            
+            from sqlalchemy import text
+            email_docente = session.scalar(text("SELECT email FROM teachers WHERE id = :id"), {"id": materia.docente_id})
+            email_final = str(email_docente) if email_docente else "docente@agm.local"
+
             with grpc.insecure_channel(request.app.state.settings.notifications_grpc_target) as channel:
                 stub = notifications_pb2_grpc.NotificationsServiceStub(channel)
                 stub.SendBajaNotif(
@@ -587,6 +603,10 @@ def baja_student(
                         alumno_id=alumno_id,
                         docente_id=materia.docente_id,
                         motivo=motivo,
+                        docente_email=email_final,
+                        alumno_nombre=nombre_alumno,   # <-- ENVIAMOS EL NOMBRE
+                        materia_nombre=materia.nombre, # <-- ENVIAMOS MATERIA
+                        materia_id=materia_id,         # <-- ENVIAMOS ID
                     )
                 )
         except grpc.RpcError:

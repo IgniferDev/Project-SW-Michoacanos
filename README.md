@@ -1,6 +1,6 @@
-# AGM Backend Microservices
+# AGM Academic Grade Management
 
-Primera entrega funcional del backend del proyecto **AGM - Academic Grade Management** enfocada en lo evaluable del PDF: microservicios reales, gRPC entre servicios, JWT/RBAC, importacion de PDFs/CSV/XLSX, asistencias QR, notificaciones y reportes.
+Implementacion del proyecto **AGM - Academic Grade Management** con backend en microservicios y frontend web SPA. El stack cubre lo evaluable del proyecto: autenticacion por roles, importacion de PDFs/CSV/XLSX, calificaciones, asistencias QR, notificaciones, reportes, PostgreSQL por microservicio y comunicacion gRPC interna.
 
 ## Arquitectura
 
@@ -11,6 +11,7 @@ Primera entrega funcional del backend del proyecto **AGM - Academic Grade Manage
 - `ms-attendance`: sesiones de asistencia, QR firmado y registro `Presente` / `Retardo`.
 - `ms-notifications`: bitacora de correos y envio SMTP opcional.
 - `ms-reports`: exportacion XLSX/PDF y estadisticas para docente y alumno.
+- `frontend/`: SPA web para administrador, docente y alumno, servida con Nginx.
 - `proto/`: contratos gRPC compartidos.
 - `proto_generated/`: codigo generado desde `.proto`.
 
@@ -18,6 +19,7 @@ Cada microservicio corre en su propio puerto REST y en su propio puerto gRPC. En
 
 ## Puertos
 
+- `frontend`: web `8080`
 - `ms-auth`: REST `8011`, gRPC `50051`
 - `ms-periods`: REST `8012`, gRPC `50052`
 - `ms-academics`: REST `8013`, gRPC `50053`
@@ -25,6 +27,9 @@ Cada microservicio corre en su propio puerto REST y en su propio puerto gRPC. En
 - `ms-attendance`: REST `8015`, gRPC `50055`
 - `ms-notifications`: REST `8016`, gRPC `50056`
 - `ms-reports`: REST `8017`, gRPC `50057`
+- `pgAdmin`: web `5050`
+- `PostgreSQL`: `5432`
+- `Redis`: `6379`
 
 ## Ejecutar local sin Docker
 
@@ -77,16 +82,34 @@ docker compose down -v
 docker compose up --build
 ```
 
+Frontend disponible en:
+
+- [http://127.0.0.1:8080](http://127.0.0.1:8080)
+
 ## PostgreSQL visual
 
 - PostgreSQL: `localhost:5432`
 - Usuario: `agm`
 - Password: `agm_dev_password`
 - pgAdmin: [http://127.0.0.1:5050](http://127.0.0.1:5050)
-- Login pgAdmin: `admin@agm.local`
+- Login pgAdmin: `admin@agm.com`
 - Password pgAdmin: `Admin123!`
 
 Desde pgAdmin puedes registrar el servidor `postgres` o `host.docker.internal` segun desde donde te conectes y revisar que cada microservicio tiene su propia base separada.
+
+## Frontend web
+
+El frontend es una SPA estatica conectada directamente a los microservicios REST en `localhost`.
+
+- `admin`: dashboard, periodos, importaciones, materias, calificaciones, asistencias y reportes.
+- `docente`: dashboard, materias propias, ponderaciones, actividades, captura/importacion de calificaciones, asistencias y reportes.
+- `alumno`: dashboard, materias inscritas, estadisticas, baja de materia y generacion de QR.
+
+Notas operativas del frontend:
+
+- Usa carga de archivos real en navegador para PDF, CSV y XLSX; no depende de `source_path`.
+- Conserva localmente los IDs de actividades y sesiones creadas desde ese navegador para ayudarte en flujos donde el backend no expone un listado REST.
+- Consume directamente los endpoints existentes; no modifica ni sustituye la logica del backend.
 
 ## Flujo minimo de prueba
 
@@ -164,7 +187,7 @@ pytest
 
 ## Siguientes mejoras recomendadas
 
-- Migrar las bases SQLite a PostgreSQL para una defensa mas fuerte del proyecto.
+- Formalizar migraciones de esquema y estrategia de seeds para el entorno Docker/PostgreSQL.
 - Endurecer autenticacion con refresh tokens persistentes y logout invalidando tokens.
 - Agregar API Gateway y coleccion Postman.
 - Afinar mas el parser del PDF de programacion para cubrir otros formatos del mismo documento.

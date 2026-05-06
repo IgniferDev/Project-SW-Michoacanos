@@ -1,4 +1,6 @@
+import json
 import smtplib
+import urllib.request
 from email.message import EmailMessage
 from typing import Any
 
@@ -75,14 +77,23 @@ def build_message(kind: str, payload: dict[str, Any]) -> tuple[str, str, str]:
             f"Tu clave temporal es: {payload.get('temporary_password') or 'ya existente'}\n"
         )
         return payload["email"], subject, body
+        
     if kind == "baja":
-        subject = "AGM | Solicitud de baja de materia"
-        body = f"El alumno {payload['alumno_id']} solicitó baja. Motivo: {payload.get('motivo', '')}"
+        subject = f"AGM | Solicitud de baja - {payload.get('materia_nombre', '')}"
+        body = (
+            f"Estimado docente,\n\n"
+            f"El alumno {payload.get('alumno_nombre', '')} ha solicitado la baja de la materia:\n"
+            f"- Materia: {payload.get('materia_nombre', '')} (ID: {payload.get('materia_id', '')})\n"
+            f"- Motivo: {payload.get('motivo', '')}\n\n"
+            f"El sistema ha actualizado el pase de lista automáticamente."
+        )
         return payload.get("recipient", "docente@agm.local"), subject, body
+        
     if kind == "cierre-materia":
         subject = "AGM | Cierre de materia"
         body = f"La materia {payload['materia_nombre'] or payload['materia_id']} fue cerrada y sus calificaciones publicadas."
         return payload.get("recipient", "grupo@agm.local"), subject, body
+        
     subject = "AGM | Recuperación de contraseña"
     body = f"Usa este token para restablecer tu contraseña: {payload['reset_token']}"
     return payload["email"], subject, body
@@ -153,7 +164,15 @@ class NotificationsGrpcService(notifications_pb2_grpc.NotificationsServiceServic
                 session,
                 self.settings,
                 "baja",
-                {"alumno_id": request.alumno_id, "docente_id": request.docente_id, "motivo": request.motivo},
+                {
+                    "alumno_id": request.alumno_id, 
+                    "docente_id": request.docente_id, 
+                    "motivo": request.motivo,
+                    "recipient": request.docente_email,
+                    "alumno_nombre": request.alumno_nombre,   # <-- RECIBIMOS
+                    "materia_nombre": request.materia_nombre, # <-- RECIBIMOS
+                    "materia_id": request.materia_id          # <-- RECIBIMOS
+                },
             )
 
     def SendCierreMateria(self, request, context):
