@@ -1,5 +1,6 @@
 import json
 import smtplib
+import grpc
 import urllib.request
 from email.message import EmailMessage
 from typing import Any
@@ -11,6 +12,7 @@ from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 from proto_generated import notifications_pb2, notifications_pb2_grpc
+from proto_generated import academics_pb2, academics_pb2_grpc
 from shared.app_common.auth import require_roles
 from shared.app_common.config import BaseServiceSettings
 from shared.app_common.database import Base, create_session_factory, session_scope
@@ -33,6 +35,7 @@ class Settings(BaseServiceSettings):
     smtp_password: str = ""
     smtp_from: str = "noreply@agm.local"
     smtp_tls: bool = True
+    academics_grpc_target: str = "ms-academics:50053"
 
 
 class NotificationLog(Base):
@@ -65,6 +68,7 @@ class SimpleMailPayload(BaseModel):
     materia_id: int | None = None
     materia_nombre: str = ""
     motivo: str = ""
+    alumnos_emails: list[str] = [] # <-- Coincide con el JSON de Postman
 
 
 def build_message(kind: str, payload: dict[str, Any]) -> tuple[str, str, str]:
@@ -90,9 +94,14 @@ def build_message(kind: str, payload: dict[str, Any]) -> tuple[str, str, str]:
         return payload.get("recipient", "docente@agm.local"), subject, body
         
     if kind == "cierre-materia":
-        subject = "AGM | Cierre de materia"
-        body = f"La materia {payload['materia_nombre'] or payload['materia_id']} fue cerrada y sus calificaciones publicadas."
-        return payload.get("recipient", "grupo@agm.local"), subject, body
+        subject = f"AGM | Cierre de materia - {payload.get('materia_nombre')}"
+        body = f"La materia {payload.get('materia_nombre') or payload.get('materia_id')} fue cerrada y sus calificaciones publicadas."
+        
+        # Unimos la lista de correos para el destinatario
+        lista = payload.get("alumnos_emails", [])
+        recipient = ", ".join(lista) if lista else "grupo@agm.local"
+        
+        return recipient, subject, body
         
     subject = "AGM | Recuperación de contraseña"
     body = f"Usa este token para restablecer tu contraseña: {payload['reset_token']}"
@@ -117,10 +126,13 @@ def deliver_email(settings: Settings, recipient: str, subject: str, body: str) -
 
 
 def persist_notification(session: Session, *, kind: str, recipient: str, subject: str, body: str, status_value: str) -> None:
+    # Truncamos el string a 250 caracteres + "..." para que no explote PostgreSQL
+    safe_recipient = recipient[:250] + "..." if len(recipient) > 255 else recipient
+    
     session.add(
         NotificationLog(
             kind=kind,
-            recipient=recipient,
+            recipient=safe_recipient,
             subject=subject,
             body=body,
             status=status_value,
@@ -181,7 +193,11 @@ class NotificationsGrpcService(notifications_pb2_grpc.NotificationsServiceServic
                 session,
                 self.settings,
                 "cierre-materia",
-                {"materia_id": request.materia_id, "materia_nombre": request.materia_nombre},
+                {
+                    "materia_id": request.materia_id, 
+                    "materia_nombre": request.materia_nombre,
+                    "alumnos_emails": list(request.alumnos_emails) # <-- Mapeamos la lista gRPC
+                },
             )
 
     def SendResetPassword(self, request, context):
@@ -250,9 +266,30 @@ def baja(payload: SimpleMailPayload, request: Request, user=Depends(require_role
 @app.post("/notificaciones/cierre-materia")
 def cierre(payload: SimpleMailPayload, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
     session_factory = request.app.state.session_factory
+    
+    correos_finales = payload.alumnos_emails
+    
+    # Magia: Si no vienen correos en el JSON, los consultamos por gRPC
+    if not correos_finales and payload.materia_id:
+        try:
+            with grpc.insecure_channel(request.app.state.settings.academics_grpc_target) as channel:
+                stub = academics_pb2_grpc.AcademicsServiceStub(channel)
+                respuesta = stub.GetAlumnosByMateria(academics_pb2.MateriaIdRequest(materia_id=payload.materia_id))
+                # Extraemos solo los correos de la respuesta gRPC
+                correos_finales = [alumno.email for alumno in respuesta.items if alumno.email]
+        except Exception as e:
+            print(f"Error consultando alumnos al MS-3: {e}")
+            
+    # Inyectamos los correos obtenidos al payload para que build_message los use
+    payload_dict = payload.model_dump()
+    payload_dict["alumnos_emails"] = correos_finales
+    
     with session_scope(session_factory) as session:
-        reply = process_notification(session, request.app.state.settings, "cierre-materia", payload.model_dump())
-        return ok({"status": reply.message}, "Notificación registrada")
+        reply = process_notification(session, request.app.state.settings, "cierre-materia", payload_dict)
+        return ok({
+            "status": reply.message, 
+            "total_enviados": len(correos_finales) # Para ver cuántos atrapó
+        }, "Notificación registrada")
 
 
 @app.post("/notificaciones/reset-password")

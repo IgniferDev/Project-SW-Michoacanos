@@ -28,8 +28,9 @@ message BajaRequest {
 }
 
 message CierreMateriaRequest {
-  int64 materia_id = 1;
+  int32 materia_id = 1;
   string materia_nombre = 2;
+  repeated string alumnos_emails = 3; // <-- NUEVO: Lista de correos
 }
 
 message ResetPasswordRequest {
