@@ -5,6 +5,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
@@ -74,9 +76,14 @@ def build_grades_xlsx(subject, rows: list) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Calificaciones"
-    sheet.append(["Materia", subject.nombre])
-    sheet.append(["NRC", subject.nrc])
-    sheet.append([])
+    
+    # Cabecera Institucional
+    sheet.append(["Materia:", subject.nombre])
+    sheet.append(["ID Materia:", subject.materia_id])
+    sheet.append(["NRC:", subject.nrc])
+    sheet.append(["ID Docente:", subject.docente_id])
+    sheet.append([]) # Fila en blanco
+    
     sheet.append(["Alumno ID", "Nombre", "Promedio real", "Promedio redondeado"])
     for row in rows:
         sheet.append([row.alumno_id, row.nombre, row.promedio_real, row.promedio_redondeado])
@@ -129,9 +136,14 @@ def build_attendance_xlsx(subject, headers: list, rows: list) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Asistencias"
-    sheet.append(["Materia", subject.nombre])
-    sheet.append(["NRC", subject.nrc])
-    sheet.append([])
+    
+    # Cabecera Institucional
+    sheet.append(["Materia:", subject.nombre])
+    sheet.append(["ID Materia:", subject.materia_id])
+    sheet.append(["NRC:", subject.nrc])
+    sheet.append(["ID Docente:", subject.docente_id])
+    sheet.append([]) # Fila en blanco
+    
     sheet.append(headers)
     for row in rows:
         sheet.append(row)
@@ -140,9 +152,20 @@ def build_attendance_xlsx(subject, headers: list, rows: list) -> bytes:
     return output.getvalue()
 
 
-def build_pdf(title: str, headers: list[str], rows: list[list]) -> bytes:
+def build_pdf(title: str, subject, headers: list[str], rows: list[list]) -> bytes:
     output = BytesIO()
     doc = SimpleDocTemplate(output, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elements = []
+    
+    # Título y Cabecera Institucional del PDF
+    elements.append(Paragraph(title, styles['Title']))
+    elements.append(Paragraph(f"<b>Materia:</b> {subject.nombre}", styles['Normal']))
+    elements.append(Paragraph(f"<b>ID Materia:</b> {subject.materia_id}", styles['Normal']))
+    elements.append(Paragraph(f"<b>NRC:</b> {subject.nrc}", styles['Normal']))
+    elements.append(Paragraph(f"<b>ID Docente Asignado:</b> {subject.docente_id}", styles['Normal']))
+    elements.append(Spacer(1, 20)) # Espacio antes de la tabla
+    
     table = Table([headers] + rows)
     table.setStyle(
         TableStyle(
@@ -154,7 +177,8 @@ def build_pdf(title: str, headers: list[str], rows: list[list]) -> bytes:
             ]
         )
     )
-    doc.build([table])
+    elements.append(table)
+    doc.build(elements)
     return output.getvalue()
 
 
@@ -177,7 +201,8 @@ class ReportsGrpcService(reports_pb2_grpc.ReportsServiceServicer):
             rows = get_grade_concentrado(self.settings.grades_grpc_target, request.materia_id)
             if request.format == "pdf":
                 content = build_pdf(
-                    f"Calificaciones {subject.nombre}",
+                    "Reporte de Calificaciones",
+                    subject, # <-- INYECTAMOS EL SUBJECT AQUÍ
                     ["Alumno ID", "Nombre", "Promedio real", "Promedio redondeado"],
                     [[row.alumno_id, row.nombre, row.promedio_real, row.promedio_redondeado] for row in rows],
                 )
@@ -197,7 +222,7 @@ class ReportsGrpcService(reports_pb2_grpc.ReportsServiceServicer):
         headers, data_rows = build_attendance_matrix(records, students)
 
         if request.format == "pdf":
-            content = build_pdf(f"Asistencias {subject.nombre}", headers, data_rows)
+            content = build_pdf("Pase de Lista Oficial", subject, headers, data_rows) # <-- INYECTAMOS EL SUBJECT AQUÍ
             return reports_pb2.FileBytes(content=content, filename=f"asistencias_{request.materia_id}.pdf", mime_type="application/pdf")
         
         content = build_attendance_xlsx(subject, headers, data_rows)
