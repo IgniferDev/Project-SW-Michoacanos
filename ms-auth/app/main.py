@@ -270,7 +270,7 @@ def shutdown_event() -> None:
         grpc_server.stop(grace=1)
 
 
-@app.get("/health")
+@app.get("/auth/health")
 def health() -> dict:
     return ok({"service": "auth", "status": "ok"})
 
