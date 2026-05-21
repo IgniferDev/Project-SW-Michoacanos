@@ -372,7 +372,7 @@ class AcademicsGrpcService(academics_pb2_grpc.AcademicsServiceServicer):
             )
 
 
-app = FastAPI(title="AGM Docentes & Alumnos", version="0.1.0")
+app = FastAPI(title="AGM Docentes & Alumnos", version="0.1.0", root_path="/api/academics")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

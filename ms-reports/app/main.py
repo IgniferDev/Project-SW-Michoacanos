@@ -251,7 +251,7 @@ class ReportsGrpcService(reports_pb2_grpc.ReportsServiceServicer):
         return reports_pb2.StatsPeriodoReply(items=items)
 
 
-app = FastAPI(title="AGM Reportes & Estadísticas", version="0.1.0")
+app = FastAPI(title="AGM Reportes & Estadísticas", version="0.1.0", root_path="/api/reports")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

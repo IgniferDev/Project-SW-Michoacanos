@@ -151,5 +151,21 @@ services:
       ms-attendance:
         condition: service_started
 
+  api-gateway:
+    image: nginx:alpine
+    container_name: agm_api_gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./api-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - ms-auth
+      - ms-periods
+      - ms-academics
+      - ms-grades
+      - ms-attendance
+      - ms-notifications
+      - ms-reports
+
 volumes:
   postgres_data:

@@ -233,7 +233,7 @@ class PeriodsGrpcService(periods_pb2_grpc.PeriodsServiceServicer):
             )
 
 
-app = FastAPI(title="AGM Periodos & Materias", version="0.1.0")
+app = FastAPI(title="AGM Periodos & Materias", version="0.1.0", root_path="/api/periods")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

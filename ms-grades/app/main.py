@@ -194,7 +194,7 @@ class GradesGrpcService(grades_pb2_grpc.GradesServiceServicer):
             )
 
 
-app = FastAPI(title="AGM Calificaciones & Ponderaciones", version="0.1.0")
+app = FastAPI(title="AGM Calificaciones & Ponderaciones", version="0.1.0", root_path="/api/grades")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

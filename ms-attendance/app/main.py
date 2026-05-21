@@ -153,7 +153,7 @@ class AttendanceGrpcService(attendance_pb2_grpc.AttendanceServiceServicer):
             )
 
 
-app = FastAPI(title="AGM Asistencias QR", version="0.1.0")
+app = FastAPI(title="AGM Asistencias QR", version="0.1.0", root_path="/api/attendance")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -226,7 +226,7 @@ class AuthGrpcService(auth_pb2_grpc.AuthServiceServicer):
             )
 
 
-app = FastAPI(title="AGM Auth & Users", version="0.1.0")
+app = FastAPI(title="AGM Auth & Users", version="0.1.0", root_path="/api/auth")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

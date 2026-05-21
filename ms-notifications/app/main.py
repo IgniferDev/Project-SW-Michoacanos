@@ -210,7 +210,7 @@ class NotificationsGrpcService(notifications_pb2_grpc.NotificationsServiceServic
             )
 
 
-app = FastAPI(title="AGM Notificaciones", version="0.1.0")
+app = FastAPI(title="AGM Notificaciones", version="0.1.0", root_path="/api/notifications")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
