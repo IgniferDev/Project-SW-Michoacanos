@@ -88,7 +88,7 @@ class GradePayload(BaseModel):
 def get_students_for_subject(target: str, materia_id: int) -> list[academics_pb2.AlumnoInfo]:
     with grpc.insecure_channel(target) as channel:
         stub = academics_pb2_grpc.AcademicsServiceStub(channel)
-        reply = stub.GetAlumnosByMateria(academics_pb2.MateriaIdRequest(materia_id=materia_id))
+        reply = stub.GetAlumnosByMateria(academics_pb2.MateriaIdRequest(materia_id=materia_id), timeout=3)
         return list(reply.items)
 
 

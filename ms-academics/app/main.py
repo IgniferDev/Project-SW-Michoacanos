@@ -614,7 +614,7 @@ def baja_student(
             # 1. ESTO SE QUEDA: Llamada síncrona para obtener info de la materia
             with grpc.insecure_channel(request.app.state.settings.periods_grpc_target) as channel:
                 stub = periods_pb2_grpc.PeriodsServiceStub(channel)
-                materia = stub.GetMateriaById(periods_pb2.MateriaIdRequest(materia_id=materia_id))
+                materia = stub.GetMateriaById(periods_pb2.MateriaIdRequest(materia_id=materia_id), timeout=3)
             
             # Consultamos al alumno para sacar su nombre
             student = session.get(Student, alumno_id)
