@@ -1,8 +1,8 @@
 import csv
 import io
 import re
-import redis  # <-- NUEVO
-import json   # <-- NUEVO
+import redis  
+import json   
 import unicodedata
 from pathlib import Path
 
@@ -32,12 +32,10 @@ class Settings(BaseServiceSettings):
     grpc_port: int = 50053
     database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_academics_db"
     
-    # Rutas internas para comunicarse con los demás microservicios
     auth_grpc_target: str = "ms-auth:50051"
     periods_grpc_target: str = "ms-periods:50052"
     redis_url: str = "redis://redis:6379/0"  # <-- NUEVO
-    #notifications_grpc_target: str = "ms-notifications:50056"
-    # (Ya eliminamos notifications_grpc_target)
+
 
 
 class Teacher(Base):
@@ -144,10 +142,8 @@ def parse_students_from_pdf(raw_text: str) -> list[dict]:
     email_pattern = re.compile(r"([a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,})", flags=re.IGNORECASE)
     all_emails = email_pattern.findall(flat)
     
-    # 1. Filtrar solo correos de alumnos
     raw_student_emails = [e.lower() for e in all_emails if "alumno" in e.lower()]
     
-    # 2. Deduplicar preservando el orden. ¡Esto destruye los duplicados y los botones globales!
     student_emails = []
     for e in raw_student_emails:
         if e not in student_emails:
@@ -607,7 +603,7 @@ def baja_student(
                 "alumno_id": alumno_id,
                 "docente_id": materia.docente_id,
                 "motivo": motivo,
-                "recipient": email_final,              # <-- Ajustado para que el ms-notifications lo lea bien
+                "recipient": email_final,              
                 "alumno_nombre": nombre_alumno,
                 "materia_nombre": materia.nombre,
                 "materia_id": materia_id,
@@ -619,3 +615,5 @@ def baja_student(
             print(f"Falla en el proceso de baja o al publicar evento: {e}")
             
         return ok(None, "Baja registrada")
+    
+#SE USA LPUSH PARA RESPETAR QUE LAS LLAMADAS SEAN PERSISTENTES Y ASÍ NO PERDER NINGUNA EN CASO DE FALLAS.
