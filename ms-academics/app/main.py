@@ -1,6 +1,8 @@
 import csv
 import io
 import re
+import redis  # <-- NUEVO
+import json   # <-- NUEVO
 import unicodedata
 from pathlib import Path
 
@@ -34,7 +36,9 @@ class Settings(BaseServiceSettings):
     # Rutas internas para comunicarse con los demás microservicios
     auth_grpc_target: str = "ms-auth:50051"
     periods_grpc_target: str = "ms-periods:50052"
-    notifications_grpc_target: str = "ms-notifications:50056"
+    redis_url: str = "redis://redis:6379/0"  # <-- NUEVO
+    #notifications_grpc_target: str = "ms-notifications:50056"
+    # (Ya eliminamos notifications_grpc_target)
 
 
 class Teacher(Base):
@@ -238,9 +242,8 @@ def provision_user(target: str, *, email: str, role: str, profile_id: int, displ
         )
         return reply.user_id, reply.temporary_password or None
 
-
 def send_welcome(
-    target: str,
+    redis_client: redis.Redis,  # <-- CAMBIO: Recibimos el cliente de Redis
     *,
     alumno_id: int,
     materia_id: int,
@@ -249,19 +252,41 @@ def send_welcome(
     temporary_password: str | None,
 ) -> None:
     try:
-        with grpc.insecure_channel(target) as channel:
-            stub = notifications_pb2_grpc.NotificationsServiceStub(channel)
-            stub.SendBienvenida(
-                notifications_pb2.BienvenidaRequest(
-                    alumno_id=alumno_id,
-                    materia_id=materia_id,
-                    email=email,
-                    nombre=nombre,
-                    temporary_password=temporary_password or "",
-                )
-            )
-    except grpc.RpcError:
-        return
+        # Empaquetamos los datos en un diccionario
+        payload = {
+            "alumno_id": alumno_id,
+            "materia_id": materia_id,
+            "email": email,
+            "nombre": nombre,
+            "temporary_password": temporary_password or "",
+        }
+        # Disparamos el evento al canal
+        redis_client.lpush("evento_bienvenida", json.dumps(payload))
+    except Exception as e:
+        print(f"Falla silenciosa del Bus de Eventos (Bienvenida): {e}")
+#def send_welcome(
+#    target: str,
+#    *,
+#    alumno_id: int,
+#    materia_id: int,
+#    email: str,
+#    nombre: str,
+#    temporary_password: str | None,
+#) -> None:
+#    try:
+#        with grpc.insecure_channel(target) as channel:
+#            stub = notifications_pb2_grpc.NotificationsServiceStub(channel)
+#            stub.SendBienvenida(
+#                notifications_pb2.BienvenidaRequest(
+#                    alumno_id=alumno_id,
+#                    materia_id=materia_id,
+#                    email=email,
+#                    nombre=nombre,
+#                    temporary_password=temporary_password or "",
+#                )
+#            )
+#    except grpc.RpcError:
+#       return
 
 
 def student_to_dict(student: Student, enrollment: Enrollment | None = None) -> dict:
@@ -389,6 +414,8 @@ def startup_event() -> None:
     Base.metadata.create_all(session_factory.kw["bind"])
     app.state.settings = settings
     app.state.session_factory = session_factory
+    # NUEVO: Conectar al Bus de Eventos
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
     app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
         settings.grpc_port,
         lambda server: academics_pb2_grpc.add_AcademicsServiceServicer_to_server(
@@ -520,7 +547,7 @@ async def import_students(
                 display_name=student.nombre,
             )
             send_welcome(
-                request.app.state.settings.notifications_grpc_target,
+                request.app.state.redis,  # <-- CAMBIO: Le pasamos Redis
                 alumno_id=student.id,
                 materia_id=materia_id,
                 email=student.email,
@@ -584,6 +611,7 @@ def baja_student(
         enrollment.activo = False
         enrollment.baja_count += 1
         try:
+            # 1. ESTO SE QUEDA: Llamada síncrona para obtener info de la materia
             with grpc.insecure_channel(request.app.state.settings.periods_grpc_target) as channel:
                 stub = periods_pb2_grpc.PeriodsServiceStub(channel)
                 materia = stub.GetMateriaById(periods_pb2.MateriaIdRequest(materia_id=materia_id))
@@ -596,19 +624,21 @@ def baja_student(
             email_docente = session.scalar(text("SELECT email FROM teachers WHERE id = :id"), {"id": materia.docente_id})
             email_final = str(email_docente) if email_docente else "docente@agm.local"
 
-            with grpc.insecure_channel(request.app.state.settings.notifications_grpc_target) as channel:
-                stub = notifications_pb2_grpc.NotificationsServiceStub(channel)
-                stub.SendBajaNotif(
-                    notifications_pb2.BajaRequest(
-                        alumno_id=alumno_id,
-                        docente_id=materia.docente_id,
-                        motivo=motivo,
-                        docente_email=email_final,
-                        alumno_nombre=nombre_alumno,   # <-- ENVIAMOS EL NOMBRE
-                        materia_nombre=materia.nombre, # <-- ENVIAMOS MATERIA
-                        materia_id=materia_id,         # <-- ENVIAMOS ID
-                    )
-                )
-        except grpc.RpcError:
-            pass
+            # 2. ESTO ES LO NUEVO (Bus de Eventos): En lugar de gRPC, disparamos a Redis
+            import json
+            payload_baja = {
+                "alumno_id": alumno_id,
+                "docente_id": materia.docente_id,
+                "motivo": motivo,
+                "recipient": email_final,              # <-- Ajustado para que el ms-notifications lo lea bien
+                "alumno_nombre": nombre_alumno,
+                "materia_nombre": materia.nombre,
+                "materia_id": materia_id,
+            }
+            # Publicamos el evento y seguimos adelante (Asíncrono)
+            request.app.state.redis.lpush("evento_baja", json.dumps(payload_baja))
+            
+        except Exception as e:
+            print(f"Falla en el proceso de baja o al publicar evento: {e}")
+            
         return ok(None, "Baja registrada")

@@ -27,7 +27,7 @@ class Settings(BaseServiceSettings):
     grpc_port: int = 50056
     # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Notificaciones
     database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_notifications_db"
-    
+    redis_url: str = "redis://redis:6379/0"  # <-- NUEVO
     # Credenciales SMTP (vacías por defecto para desarrollo local)
     smtp_host: str = ""
     smtp_port: int = 587
@@ -209,6 +209,56 @@ class NotificationsGrpcService(notifications_pb2_grpc.NotificationsServiceServic
                 {"email": request.email, "reset_token": request.reset_token},
             )
 
+import time
+import threading
+import json
+import redis
+import grpc
+
+def listen_to_redis(app_state):
+    # Lista de buzones (colas) que vamos a revisar constantemente
+    colas = ["evento_bienvenida", "evento_baja", "evento_cierre", "evento_reset"]
+    print("MS-Notifications: Conectado a Redis. Esperando mensajes en la cola...", flush=True)
+    
+    while True:
+        try:
+            # brpop (Blocking Right Pop) se queda esperando (bloqueado) hasta que aparezca un mensaje.
+            # Retorna una tupla: (nombre_de_la_cola, datos)
+            resultado = app_state.redis.brpop(colas, timeout=0)
+            
+            if resultado:
+                canal = resultado[0]
+                datos = resultado[1]
+                payload = json.loads(datos)
+                
+                print(f"\n--> [COLA DE EVENTOS] Desencolando evento pendiente: {canal}", flush=True)
+                print(f"Datos recibidos: {payload}", flush=True)
+                
+                with session_scope(app_state.session_factory) as session:
+                    if canal == "evento_bienvenida":
+                        process_notification(session, app_state.settings, "bienvenida", payload)
+                    elif canal == "evento_baja":
+                        process_notification(session, app_state.settings, "baja", payload)
+                    elif canal == "evento_cierre":
+                        correos_finales = payload.get("alumnos_emails", [])
+                        if not correos_finales and payload.get("materia_id"):
+                            try:
+                                with grpc.insecure_channel(app_state.settings.academics_grpc_target) as channel:
+                                    stub = academics_pb2_grpc.AcademicsServiceStub(channel)
+                                    respuesta = stub.GetAlumnosByMateria(academics_pb2.MateriaIdRequest(materia_id=payload["materia_id"]))
+                                    correos_finales = [a.email for a in respuesta.items if a.email]
+                            except Exception as e:
+                                print(f"Error gRPC obteniendo alumnos: {e}", flush=True)
+                        payload["alumnos_emails"] = correos_finales
+                        process_notification(session, app_state.settings, "cierre-materia", payload)
+                    elif canal == "evento_reset":
+                        process_notification(session, app_state.settings, "reset-password", payload)
+                        
+                print(f"--> [COLA DE EVENTOS] Evento {canal} resuelto y eliminado de la cola.\n", flush=True)
+                
+        except Exception as e:
+            print(f"Error revisando la cola o desconexión de Redis. Reintentando... Detalle: {e}", flush=True)
+            time.sleep(5)
 
 app = FastAPI(title="AGM Notificaciones", version="0.1.0", root_path="/api/notifications")
 app.add_middleware(
@@ -227,6 +277,12 @@ def startup_event() -> None:
     Base.metadata.create_all(session_factory.kw["bind"])
     app.state.settings = settings
     app.state.session_factory = session_factory
+    # NUEVO: Conectar a Redis y arrancar el Bus de Eventos
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    app.state.redis_thread = threading.Thread(target=listen_to_redis, args=(app.state,), daemon=True)
+    app.state.redis_thread.start()
+
+    # (Deja tu start_grpc_server intacto abajo)
     app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
         settings.grpc_port,
         lambda server: notifications_pb2_grpc.add_NotificationsServiceServicer_to_server(
@@ -265,31 +321,24 @@ def baja(payload: SimpleMailPayload, request: Request, user=Depends(require_role
 
 @app.post("/notificaciones/cierre-materia")
 def cierre(payload: SimpleMailPayload, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
-    session_factory = request.app.state.session_factory
+    import json
     
-    correos_finales = payload.alumnos_emails
-    
-    # Magia: Si no vienen correos en el JSON, los consultamos por gRPC
-    if not correos_finales and payload.materia_id:
-        try:
-            with grpc.insecure_channel(request.app.state.settings.academics_grpc_target) as channel:
-                stub = academics_pb2_grpc.AcademicsServiceStub(channel)
-                respuesta = stub.GetAlumnosByMateria(academics_pb2.MateriaIdRequest(materia_id=payload.materia_id))
-                # Extraemos solo los correos de la respuesta gRPC
-                correos_finales = [alumno.email for alumno in respuesta.items if alumno.email]
-        except Exception as e:
-            print(f"Error consultando alumnos al MS-3: {e}")
-            
-    # Inyectamos los correos obtenidos al payload para que build_message los use
+    # Simplemente empaquetamos la orden del administrador
     payload_dict = payload.model_dump()
-    payload_dict["alumnos_emails"] = correos_finales
     
-    with session_scope(session_factory) as session:
-        reply = process_notification(session, request.app.state.settings, "cierre-materia", payload_dict)
-        return ok({
-            "status": reply.message, 
-            "total_enviados": len(correos_finales) # Para ver cuántos atrapó
-        }, "Notificación registrada")
+    try:
+        # Publicamos el evento en el Bus de Eventos. 
+        # El hilo 'listen_to_redis' (que agregamos antes) se encargará de consultar 
+        # los alumnos por gRPC y enviar los correos en segundo plano.
+        request.app.state.redis.lpush("evento_cierre", json.dumps(payload_dict))
+    except Exception as e:
+        print(f"Error publicando en bus de eventos: {e}")
+        
+    # El Frontend recibe un OK inmediato, sin quedarse trabado esperando el SMTP
+    return ok(
+        {"status": "Encolado", "info": "Los correos se procesarán de forma asíncrona"}, 
+        "Cierre de materia iniciado"
+    )
 
 
 @app.post("/notificaciones/reset-password")

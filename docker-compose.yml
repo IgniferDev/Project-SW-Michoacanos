@@ -48,6 +48,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:                         # <-- NUEVO
+        condition: service_healthy   # <-- NUEVO
 
   ms-periods:
     build:
@@ -80,6 +82,8 @@ services:
         condition: service_started
       ms-notifications:
         condition: service_started
+      redis:                         # <-- NUEVO
+        condition: service_healthy   # <-- NUEVO
 
   ms-grades:
     build:
@@ -98,6 +102,8 @@ services:
         condition: service_started
       ms-academics:
         condition: service_started
+      redis:                         # <-- NUEVO
+        condition: service_healthy   # <-- NUEVO
 
   ms-attendance:
     build:
@@ -128,6 +134,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:                         # <-- NUEVO
+        condition: service_healthy   # <-- NUEVO
 
   ms-reports:
     build:

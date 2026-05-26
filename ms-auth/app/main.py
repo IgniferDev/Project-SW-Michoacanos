@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
-
+import redis
+import json
 import grpc
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +39,7 @@ class Settings(BaseServiceSettings):
     admin_password: str = "Admin123!"
     # Ruta interna para pedirle a MS-6 que envíe correos
     notifications_grpc_target: str = "ms-notifications:50056"
+    redis_url: str = "redis://redis:6379/0"  # <-- NUEVO
 
 
 class User(Base):
@@ -255,6 +257,8 @@ def startup_event() -> None:
             )
     app.state.settings = settings
     app.state.session_factory = session_factory
+    import redis  # Asegúrate de importar redis arriba del archivo
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True) # <-- NUEVO
     app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
         settings.grpc_port,
         lambda server: auth_pb2_grpc.add_AuthServiceServicer_to_server(
@@ -310,14 +314,13 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request) -> dict:
                 expires_at=datetime.now(UTC) + timedelta(hours=1),
             )
         )
+        # NUEVO: Publicar evento asíncrono (Fire and Forget)
+        import json
+        payload_evento = {"email": user.email, "reset_token": token}
         try:
-            with grpc.insecure_channel(request.app.state.settings.notifications_grpc_target) as channel:
-                stub = notifications_pb2_grpc.NotificationsServiceStub(channel)
-                stub.SendResetPassword(
-                    notifications_pb2.ResetPasswordRequest(email=user.email, reset_token=token)
-                )
-        except grpc.RpcError:
-            pass
+            request.app.state.redis.lpush("evento_reset", json.dumps(payload_evento))
+        except Exception as e:
+            print(f"Falla silenciosa del Bus de Eventos: {e}")
         return ok({"reset_token": token}, "Token de recuperación generado")
 
 
