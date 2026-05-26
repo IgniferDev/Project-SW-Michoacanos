@@ -31,7 +31,7 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-auth"
     rest_port: int = 8011
     grpc_port: int = 50051
-    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Auth en PostgreSQL
+    
     database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_auth_db"
     jwt_secret: str = "change-me-auth-secret"
     jwt_exp_minutes: int = 120
@@ -39,7 +39,7 @@ class Settings(BaseServiceSettings):
     admin_password: str = "Admin123!"
     # Ruta interna para pedirle a MS-6 que envíe correos
     notifications_grpc_target: str = "ms-notifications:50056"
-    redis_url: str = "redis://redis:6379/0"  # <-- NUEVO
+    redis_url: str = "redis://redis:6379/0"  # NUEVO
 
 
 class User(Base):
@@ -257,8 +257,8 @@ def startup_event() -> None:
             )
     app.state.settings = settings
     app.state.session_factory = session_factory
-    import redis  # Asegúrate de importar redis arriba del archivo
-    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True) # <-- NUEVO
+    import redis  
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True) 
     app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
         settings.grpc_port,
         lambda server: auth_pb2_grpc.add_AuthServiceServicer_to_server(
