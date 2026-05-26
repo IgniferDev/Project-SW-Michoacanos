@@ -15,7 +15,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 from proto_generated import academics_pb2, academics_pb2_grpc
 from proto_generated import auth_pb2, auth_pb2_grpc
-from proto_generated import notifications_pb2, notifications_pb2_grpc
+
 from proto_generated import periods_pb2, periods_pb2_grpc
 from shared.app_common.auth import require_roles
 from shared.app_common.config import BaseServiceSettings
@@ -30,7 +30,6 @@ class Settings(BaseServiceSettings):
     service_slug: str = "ms-academics"
     rest_port: int = 8013
     grpc_port: int = 50053
-    # ¡ADIÓS SQLITE! Apuntamos a la base de datos exclusiva de Academics
     database_url: str = "postgresql+psycopg://agm:agm_dev_password@postgres:5432/agm_academics_db"
     
     # Rutas internas para comunicarse con los demás microservicios
@@ -264,29 +263,7 @@ def send_welcome(
         redis_client.lpush("evento_bienvenida", json.dumps(payload))
     except Exception as e:
         print(f"Falla silenciosa del Bus de Eventos (Bienvenida): {e}")
-#def send_welcome(
-#    target: str,
-#    *,
-#    alumno_id: int,
-#    materia_id: int,
-#    email: str,
-#    nombre: str,
-#    temporary_password: str | None,
-#) -> None:
-#    try:
-#        with grpc.insecure_channel(target) as channel:
-#            stub = notifications_pb2_grpc.NotificationsServiceStub(channel)
-#            stub.SendBienvenida(
-#                notifications_pb2.BienvenidaRequest(
-#                    alumno_id=alumno_id,
-#                    materia_id=materia_id,
-#                    email=email,
-#                    nombre=nombre,
-#                    temporary_password=temporary_password or "",
-#                )
-#            )
-#    except grpc.RpcError:
-#       return
+
 
 
 def student_to_dict(student: Student, enrollment: Enrollment | None = None) -> dict:

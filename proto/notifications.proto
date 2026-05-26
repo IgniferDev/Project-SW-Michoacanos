@@ -22,15 +22,15 @@ message BajaRequest {
   int32 docente_id = 2;
   string motivo = 3;
   string docente_email = 4;
-  string alumno_nombre = 5;   // <-- NUEVO
-  string materia_nombre = 6;  // <-- NUEVO
-  int32 materia_id = 7;       // <-- NUEVO
+  string alumno_nombre = 5;   
+  string materia_nombre = 6;  
+  int32 materia_id = 7;      
 }
 
 message CierreMateriaRequest {
   int32 materia_id = 1;
   string materia_nombre = 2;
-  repeated string alumnos_emails = 3; // <-- NUEVO: Lista de correos
+  repeated string alumnos_emails = 3; 
 }
 
 message ResetPasswordRequest {
