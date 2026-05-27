@@ -24,23 +24,11 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13notifications.proto\x12\x11\x61gm.notifications\"u\n\x11\x42ienvenidaRequest\x12\x11\n\talumno_id\x18\x01 \x01(\x03\x12\x12\n\nmateria_id\x18\x02 \x01(\x03\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\x0e\n\x06nombre\x18\x04 \x01(\t\x12\x1a\n\x12temporary_password\x18\x05 \x01(\t\"\x9e\x01\n\x0b\x42\x61jaRequest\x12\x11\n\talumno_id\x18\x01 \x01(\x05\x12\x12\n\ndocente_id\x18\x02 \x01(\x05\x12\x0e\n\x06motivo\x18\x03 \x01(\t\x12\x15\n\rdocente_email\x18\x04 \x01(\t\x12\x15\n\ralumno_nombre\x18\x05 \x01(\t\x12\x16\n\x0emateria_nombre\x18\x06 \x01(\t\x12\x12\n\nmateria_id\x18\x07 \x01(\x05\"Z\n\x14\x43ierreMateriaRequest\x12\x12\n\nmateria_id\x18\x01 \x01(\x05\x12\x16\n\x0emateria_nombre\x18\x02 \x01(\t\x12\x16\n\x0e\x61lumnos_emails\x18\x03 \x03(\t\":\n\x14ResetPasswordRequest\x12\r\n\x05\x65mail\x18\x01 \x01(\t\x12\x13\n\x0breset_token\x18\x02 \x01(\t\"(\n\tBoolReply\x12\n\n\x02ok\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xf3\x02\n\x14NotificationsService\x12T\n\x0eSendBienvenida\x12$.agm.notifications.BienvenidaRequest\x1a\x1c.agm.notifications.BoolReply\x12M\n\rSendBajaNotif\x12\x1e.agm.notifications.BajaRequest\x1a\x1c.agm.notifications.BoolReply\x12Z\n\x11SendCierreMateria\x12\'.agm.notifications.CierreMateriaRequest\x1a\x1c.agm.notifications.BoolReply\x12Z\n\x11SendResetPassword\x12\'.agm.notifications.ResetPasswordRequest\x1a\x1c.agm.notifications.BoolReplyb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13notifications.proto')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'notifications_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_BIENVENIDAREQUEST']._serialized_start=42
-  _globals['_BIENVENIDAREQUEST']._serialized_end=159
-  _globals['_BAJAREQUEST']._serialized_start=162
-  _globals['_BAJAREQUEST']._serialized_end=320
-  _globals['_CIERREMATERIAREQUEST']._serialized_start=322
-  _globals['_CIERREMATERIAREQUEST']._serialized_end=412
-  _globals['_RESETPASSWORDREQUEST']._serialized_start=414
-  _globals['_RESETPASSWORDREQUEST']._serialized_end=472
-  _globals['_BOOLREPLY']._serialized_start=474
-  _globals['_BOOLREPLY']._serialized_end=514
-  _globals['_NOTIFICATIONSSERVICE']._serialized_start=517
-  _globals['_NOTIFICATIONSSERVICE']._serialized_end=888
 # @@protoc_insertion_point(module_scope)

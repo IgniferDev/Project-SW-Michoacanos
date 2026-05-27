@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
-from proto_generated import notifications_pb2, notifications_pb2_grpc
+#from proto_generated import notifications_pb2, notifications_pb2_grpc
 from proto_generated import academics_pb2, academics_pb2_grpc
 from shared.app_common.auth import require_roles
 from shared.app_common.config import BaseServiceSettings
@@ -139,75 +139,84 @@ def persist_notification(session: Session, *, kind: str, recipient: str, subject
         )
     )
 
-
-def process_notification(session: Session, settings: Settings, kind: str, payload: dict[str, Any]) -> notifications_pb2.BoolReply:
+# NUEVA VERSIÓN: Ya no usa notifications_pb2
+def process_notification(session: Session, settings: Settings, kind: str, payload: dict) -> str:
     recipient, subject, body = build_message(kind, payload)
     try:
         status_value = deliver_email(settings, recipient, subject, body)
     except Exception as exc:
         status_value = f"error: {exc}"
     persist_notification(session, kind=kind, recipient=recipient, subject=subject, body=body, status_value=status_value)
-    return notifications_pb2.BoolReply(ok=True, message=status_value)
+    
+    return status_value  # Solo devolvemos el texto
+#def process_notification(session: Session, settings: Settings, kind: str, payload: dict[str, Any]) -> notifications_pb2.BoolReply:
+#    recipient, subject, body = build_message(kind, payload)
+#    try:
+#        status_value = deliver_email(settings, recipient, subject, body)
+#    except Exception as exc:
+#        status_value = f"error: {exc}"
+#    persist_notification(session, kind=kind, recipient=recipient, subject=subject, body=body, status_value=status_value)
+#    return notifications_pb2.BoolReply(ok=True, message=status_value)
 
 
-class NotificationsGrpcService(notifications_pb2_grpc.NotificationsServiceServicer):
-    def __init__(self, session_factory: sessionmaker[Session], settings: Settings):
-        self.session_factory = session_factory
-        self.settings = settings
-
-    def SendBienvenida(self, request, context):
-        with session_scope(self.session_factory) as session:
-            return process_notification(
-                session,
-                self.settings,
-                "bienvenida",
-                {
-                    "alumno_id": request.alumno_id,
-                    "materia_id": request.materia_id,
-                    "email": request.email,
-                    "nombre": request.nombre,
-                    "temporary_password": request.temporary_password,
-                },
-            )
-
-    def SendBajaNotif(self, request, context):
-        with session_scope(self.session_factory) as session:
-            return process_notification(
-                session,
-                self.settings,
-                "baja",
-                {
-                    "alumno_id": request.alumno_id, 
-                    "docente_id": request.docente_id, 
-                    "motivo": request.motivo,
-                    "recipient": request.docente_email,
-                    "alumno_nombre": request.alumno_nombre,   # <-- RECIBIMOS
-                    "materia_nombre": request.materia_nombre, # <-- RECIBIMOS
-                    "materia_id": request.materia_id          # <-- RECIBIMOS
-                },
-            )
-
-    def SendCierreMateria(self, request, context):
-        with session_scope(self.session_factory) as session:
-            return process_notification(
-                session,
-                self.settings,
-                "cierre-materia",
-                {
-                    "materia_id": request.materia_id, 
-                    "materia_nombre": request.materia_nombre,
-                    "alumnos_emails": list(request.alumnos_emails) # <-- Mapeamos la lista gRPC
-                },
-            )
-
-    def SendResetPassword(self, request, context):
-        with session_scope(self.session_factory) as session:
-            return process_notification(
-                session,
-                self.settings,
-                "reset-password",
-                {"email": request.email, "reset_token": request.reset_token},
-            )
+#class NotificationsGrpcService(notifications_pb2_grpc.NotificationsServiceServicer):
+#    def __init__(self, session_factory: sessionmaker[Session], settings: Settings):
+#        self.session_factory = session_factory
+#        self.settings = settings
+#
+#    def SendBienvenida(self, request, context):
+#        with session_scope(self.session_factory) as session:
+#            return process_notification(
+#                session,
+#                self.settings,
+#                "bienvenida",
+#                {
+#                    "alumno_id": request.alumno_id,
+#                    "materia_id": request.materia_id,
+#                    "email": request.email,
+#                    "nombre": request.nombre,
+#                    "temporary_password": request.temporary_password,
+#                },
+#            )
+#
+#    def SendBajaNotif(self, request, context):
+#        with session_scope(self.session_factory) as session:
+#            return process_notification(
+#                session,
+#                self.settings,
+#                "baja",
+#                {
+#                    "alumno_id": request.alumno_id, 
+#                    "docente_id": request.docente_id, 
+#                    "motivo": request.motivo,
+#                    "recipient": request.docente_email,
+#                    "alumno_nombre": request.alumno_nombre,   # <-- RECIBIMOS
+#                    "materia_nombre": request.materia_nombre, # <-- RECIBIMOS
+#                    "materia_id": request.materia_id          # <-- RECIBIMOS
+#                },
+#            )
+#
+#    def SendCierreMateria(self, request, context):
+#        with session_scope(self.session_factory) as session:
+#            return process_notification(
+#                session,
+#                self.settings,
+#                "cierre-materia",
+#                {
+#                    "materia_id": request.materia_id, 
+#                    "materia_nombre": request.materia_nombre,
+#                    "alumnos_emails": list(request.alumnos_emails) # <-- Mapeamos la lista gRPC
+#                },
+#            )
+#
+#    def SendResetPassword(self, request, context):
+#        with session_scope(self.session_factory) as session:
+#            return process_notification(
+#                session,
+#                self.settings,
+#                "reset-password",
+#                {"email": request.email, "reset_token": request.reset_token},
+#            )
 
 import time
 import threading
@@ -283,12 +292,12 @@ def startup_event() -> None:
     app.state.redis_thread.start()
 
     # (Deja tu start_grpc_server intacto abajo)
-    app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
-        settings.grpc_port,
-        lambda server: notifications_pb2_grpc.add_NotificationsServiceServicer_to_server(
-            NotificationsGrpcService(session_factory, settings), server
-        ),
-    )
+    #app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
+    #    settings.grpc_port,
+    #    lambda server: notifications_pb2_grpc.add_NotificationsServiceServicer_to_server(
+    #        NotificationsGrpcService(session_factory, settings), server
+    #    ),
+    #)
 
 
 @app.on_event("shutdown")
@@ -307,16 +316,16 @@ def health() -> dict:
 def welcome(payload: WelcomePayload, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
     session_factory = request.app.state.session_factory
     with session_scope(session_factory) as session:
-        reply = process_notification(session, request.app.state.settings, "bienvenida", payload.model_dump())
-        return ok({"status": reply.message}, "Notificación registrada")
+        status_msg = process_notification(session, request.app.state.settings, "bienvenida", payload.model_dump())
+        return ok({"status": status_msg}, "Notificación registrada")
 
 
 @app.post("/notificaciones/baja")
 def baja(payload: SimpleMailPayload, request: Request, user=Depends(require_roles("admin", "alumno"))) -> dict:
     session_factory = request.app.state.session_factory
     with session_scope(session_factory) as session:
-        reply = process_notification(session, request.app.state.settings, "baja", payload.model_dump())
-        return ok({"status": reply.message}, "Notificación registrada")
+        status_msg = process_notification(session, request.app.state.settings, "baja", payload.model_dump())
+        return ok({"status": status_msg}, "Notificación registrada")
 
 
 @app.post("/notificaciones/cierre-materia")
@@ -345,5 +354,5 @@ def cierre(payload: SimpleMailPayload, request: Request, user=Depends(require_ro
 def reset_password(payload: ResetPasswordPayload, request: Request) -> dict:
     session_factory = request.app.state.session_factory
     with session_scope(session_factory) as session:
-        reply = process_notification(session, request.app.state.settings, "reset-password", payload.model_dump())
-        return ok({"status": reply.message}, "Notificación registrada")
+        status_msg = process_notification(session, request.app.state.settings, "reset-password", payload.model_dump())
+        return ok({"status": status_msg}, "Notificación registrada")

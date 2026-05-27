@@ -3,6 +3,9 @@ from typing import Annotated
 import redis
 import json
 import grpc
+import threading
+import time
+import json
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -11,7 +14,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 from proto_generated import auth_pb2, auth_pb2_grpc
-from proto_generated import notifications_pb2, notifications_pb2_grpc
+#from proto_generated import notifications_pb2, notifications_pb2_grpc
 from shared.app_common.config import BaseServiceSettings
 from shared.app_common.database import Base, create_session_factory, session_scope
 from shared.app_common.grpc_runtime import start_grpc_server
@@ -38,7 +41,7 @@ class Settings(BaseServiceSettings):
     admin_email: str = "admin@agm.local"
     admin_password: str = "Admin123!"
     # Ruta interna para pedirle a MS-6 que envíe correos
-    notifications_grpc_target: str = "ms-notifications:50056"
+    #notifications_grpc_target: str = "ms-notifications:50056"
     redis_url: str = "redis://redis:6379/0"  # NUEVO
 
 
@@ -228,6 +231,39 @@ class AuthGrpcService(auth_pb2_grpc.AuthServiceServicer):
             )
 
 
+
+def listen_to_redis_auth(app_state):
+    colas = ["evento_crear_usuario"]
+    print("MS-Auth: Conectado a Redis. Esperando usuarios por crear...", flush=True)
+    
+    while True:
+        try:
+            resultado = app_state.redis.brpop(colas, timeout=0)
+            if resultado:
+                canal = resultado[0]
+                datos = json.loads(resultado[1])
+                print(f"--> [COLA AUTH] Creando usuario: {datos['email']}", flush=True)
+                
+                with session_scope(app_state.session_factory) as session:
+                    # Usamos la misma función que ya tenías para crear el usuario en BD
+                    # Pero esta vez le pasamos la contraseña que nos mandó academics
+                    existing = session.scalar(select(User).where(User.email == datos['email']))
+                    if not existing:
+                        user = User(
+                            email=datos['email'],
+                            password_hash=hash_password(datos['temporary_password']),
+                            role=datos['role'],
+                            display_name=datos['display_name'],
+                            profile_id=datos['profile_id'],
+                        )
+                        session.add(user)
+                        session.commit()
+                        
+                print(f"--> [COLA AUTH] Usuario {datos['email']} creado exitosamente.", flush=True)
+        except Exception as e:
+            print(f"Error en hilo de Redis Auth: {e}", flush=True)
+            time.sleep(5)
+
 app = FastAPI(title="AGM Auth & Users", version="0.1.0", root_path="/api/auth")
 app.add_middleware(
     CORSMiddleware,
@@ -258,7 +294,9 @@ def startup_event() -> None:
     app.state.settings = settings
     app.state.session_factory = session_factory
     import redis  
-    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True) 
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    app.state.redis_thread = threading.Thread(target=listen_to_redis_auth, args=(app.state,), daemon=True)
+    app.state.redis_thread.start() 
     app.state.grpc_server, app.state.grpc_thread = start_grpc_server(
         settings.grpc_port,
         lambda server: auth_pb2_grpc.add_AuthServiceServicer_to_server(

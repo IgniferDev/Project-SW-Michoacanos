@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nauth.proto\x12\x08\x61gm.auth\"\x1d\n\x0cTokenRequest\x12\r\n\x05token\x18\x01 \x01(\t\" \n\rUserIdRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\"1\n\x10RoleCheckRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\x12\x0c\n\x04role\x18\x02 \x01(\t\"(\n\tBoolReply\x12\n\n\x02ok\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"]\n\nUserClaims\x12\r\n\x05valid\x18\x01 \x01(\x08\x12\x0f\n\x07user_id\x18\x02 \x01(\x03\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\x0c\n\x04role\x18\x04 \x01(\t\x12\x12\n\nprofile_id\x18\x05 \x01(\x03\"b\n\x0bUserProfile\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\x12\r\n\x05\x65mail\x18\x02 \x01(\t\x12\x0c\n\x04role\x18\x03 \x01(\t\x12\x12\n\nprofile_id\x18\x04 \x01(\x03\x12\x11\n\tis_active\x18\x05 \x01(\x08\"]\n\x14ProvisionUserRequest\x12\r\n\x05\x65mail\x18\x01 \x01(\t\x12\x0c\n\x04role\x18\x02 \x01(\t\x12\x12\n\nprofile_id\x18\x03 \x01(\x03\x12\x14\n\x0c\x64isplay_name\x18\x04 \x01(\t\"d\n\x15ProvisionUserResponse\x12\x0f\n\x07\x63reated\x18\x01 \x01(\x08\x12\x0f\n\x07user_id\x18\x02 \x01(\x03\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\x1a\n\x12temporary_password\x18\x04 \x01(\t2\x9b\x02\n\x0b\x41uthService\x12=\n\rValidateToken\x12\x16.agm.auth.TokenRequest\x1a\x14.agm.auth.UserClaims\x12=\n\x0bGetUserById\x12\x17.agm.auth.UserIdRequest\x1a\x15.agm.auth.UserProfile\x12<\n\tCheckRole\x12\x1a.agm.auth.RoleCheckRequest\x1a\x13.agm.auth.BoolReply\x12P\n\rProvisionUser\x12\x1e.agm.auth.ProvisionUserRequest\x1a\x1f.agm.auth.ProvisionUserResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nauth.proto\x12\x08\x61gm.auth\"\x1d\n\x0cTokenRequest\x12\r\n\x05token\x18\x01 \x01(\t\" \n\rUserIdRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\"1\n\x10RoleCheckRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\x12\x0c\n\x04role\x18\x02 \x01(\t\"(\n\tBoolReply\x12\n\n\x02ok\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"]\n\nUserClaims\x12\r\n\x05valid\x18\x01 \x01(\x08\x12\x0f\n\x07user_id\x18\x02 \x01(\x03\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\x0c\n\x04role\x18\x04 \x01(\t\x12\x12\n\nprofile_id\x18\x05 \x01(\x03\"b\n\x0bUserProfile\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\x12\r\n\x05\x65mail\x18\x02 \x01(\t\x12\x0c\n\x04role\x18\x03 \x01(\t\x12\x12\n\nprofile_id\x18\x04 \x01(\x03\x12\x11\n\tis_active\x18\x05 \x01(\x08\"d\n\x15ProvisionUserResponse\x12\x0f\n\x07\x63reated\x18\x01 \x01(\x08\x12\x0f\n\x07user_id\x18\x02 \x01(\x03\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\x1a\n\x12temporary_password\x18\x04 \x01(\t2\xc9\x01\n\x0b\x41uthService\x12=\n\rValidateToken\x12\x16.agm.auth.TokenRequest\x1a\x14.agm.auth.UserClaims\x12=\n\x0bGetUserById\x12\x17.agm.auth.UserIdRequest\x1a\x15.agm.auth.UserProfile\x12<\n\tCheckRole\x12\x1a.agm.auth.RoleCheckRequest\x1a\x13.agm.auth.BoolReplyb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -43,10 +43,8 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_USERCLAIMS']._serialized_end=275
   _globals['_USERPROFILE']._serialized_start=277
   _globals['_USERPROFILE']._serialized_end=375
-  _globals['_PROVISIONUSERREQUEST']._serialized_start=377
-  _globals['_PROVISIONUSERREQUEST']._serialized_end=470
-  _globals['_PROVISIONUSERRESPONSE']._serialized_start=472
-  _globals['_PROVISIONUSERRESPONSE']._serialized_end=572
-  _globals['_AUTHSERVICE']._serialized_start=575
-  _globals['_AUTHSERVICE']._serialized_end=858
+  _globals['_PROVISIONUSERRESPONSE']._serialized_start=377
+  _globals['_PROVISIONUSERRESPONSE']._serialized_end=477
+  _globals['_AUTHSERVICE']._serialized_start=480
+  _globals['_AUTHSERVICE']._serialized_end=681
 # @@protoc_insertion_point(module_scope)

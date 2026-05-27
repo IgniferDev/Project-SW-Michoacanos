@@ -49,11 +49,6 @@ class AuthServiceStub(object):
                 request_serializer=auth__pb2.RoleCheckRequest.SerializeToString,
                 response_deserializer=auth__pb2.BoolReply.FromString,
                 _registered_method=True)
-        self.ProvisionUser = channel.unary_unary(
-                '/agm.auth.AuthService/ProvisionUser',
-                request_serializer=auth__pb2.ProvisionUserRequest.SerializeToString,
-                response_deserializer=auth__pb2.ProvisionUserResponse.FromString,
-                _registered_method=True)
 
 
 class AuthServiceServicer(object):
@@ -72,13 +67,8 @@ class AuthServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CheckRole(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ProvisionUser(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """rpc ProvisionUser(ProvisionUserRequest) returns (ProvisionUserResponse);
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -100,11 +90,6 @@ def add_AuthServiceServicer_to_server(servicer, server):
                     servicer.CheckRole,
                     request_deserializer=auth__pb2.RoleCheckRequest.FromString,
                     response_serializer=auth__pb2.BoolReply.SerializeToString,
-            ),
-            'ProvisionUser': grpc.unary_unary_rpc_method_handler(
-                    servicer.ProvisionUser,
-                    request_deserializer=auth__pb2.ProvisionUserRequest.FromString,
-                    response_serializer=auth__pb2.ProvisionUserResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -188,33 +173,6 @@ class AuthService(object):
             '/agm.auth.AuthService/CheckRole',
             auth__pb2.RoleCheckRequest.SerializeToString,
             auth__pb2.BoolReply.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ProvisionUser(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/agm.auth.AuthService/ProvisionUser',
-            auth__pb2.ProvisionUserRequest.SerializeToString,
-            auth__pb2.ProvisionUserResponse.FromString,
             options,
             channel_credentials,
             insecure,

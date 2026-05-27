@@ -3,6 +3,8 @@ import io
 import re
 import redis  
 import json   
+import string
+import secrets
 import unicodedata
 from pathlib import Path
 
@@ -224,18 +226,18 @@ def subject_exists(target: str, materia_id: int) -> bool:
         raise HTTPException(status_code=503, detail="Periods service unavailable") from exc
 
 
-def provision_user(target: str, *, email: str, role: str, profile_id: int, display_name: str) -> tuple[int, str | None]:
-    with grpc.insecure_channel(target) as channel:
-        stub = auth_pb2_grpc.AuthServiceStub(channel)
-        reply = stub.ProvisionUser(
-            auth_pb2.ProvisionUserRequest(
-                email=email,
-                role=role,
-                profile_id=profile_id,
-                display_name=display_name,
-            )
-        )
-        return reply.user_id, reply.temporary_password or None
+#def provision_user(target: str, *, email: str, role: str, profile_id: int, display_name: str) -> tuple[int, str | None]:
+#    with grpc.insecure_channel(target) as channel:
+#        stub = auth_pb2_grpc.AuthServiceStub(channel)
+#        reply = stub.ProvisionUser(
+#            auth_pb2.ProvisionUserRequest(
+#                email=email,
+#                role=role,
+#                profile_id=profile_id,
+#                display_name=display_name,
+#            )
+#        )
+#        return reply.user_id, reply.temporary_password or None
 
 def send_welcome(
     redis_client: redis.Redis,  # <-- CAMBIO: Recibimos el cliente de Redis
@@ -420,6 +422,8 @@ async def import_teachers(
     teachers = parse_teacher_pdf(extract_pdf_text(path))
     session_factory = request.app.state.session_factory
     created = 0
+    alfabeto = string.ascii_letters + string.digits
+
     with session_scope(session_factory) as session:
         for item in teachers:
             teacher = session.scalar(select(Teacher).where(Teacher.email == item["email"]))
@@ -431,13 +435,18 @@ async def import_teachers(
             else:
                 for key, value in item.items():
                     setattr(teacher, key, value)
-            provision_user(
-                request.app.state.settings.auth_grpc_target,
-                email=teacher.email,
-                role="docente",
-                profile_id=teacher.id,
-                display_name=teacher.nombre,
-            )
+            
+            temp_password = "".join(secrets.choice(alfabeto) for _ in range(10))
+            
+            # Reemplazo de gRPC por Cola de Mensajes
+            request.app.state.redis.lpush("evento_crear_usuario", json.dumps({
+                "email": teacher.email,
+                "role": "docente",
+                "profile_id": teacher.id,
+                "display_name": teacher.nombre,
+                "temporary_password": temp_password
+            }))
+            
     return ok({"detectados": len(teachers), "creados": created, "preview": teachers[:8]}, "Docentes importados")
 
 
@@ -489,6 +498,8 @@ async def import_students(
 
     session_factory = request.app.state.session_factory
     imported = 0
+    alfabeto = string.ascii_letters + string.digits
+
     with session_scope(session_factory) as session:
         for item in students:
             email = item.get("email") or f"{item['matricula']}@alumno.agm.local"
@@ -504,6 +515,7 @@ async def import_students(
                 session.add(student)
                 session.flush()
                 imported += 1
+            
             enrollment = session.scalar(
                 select(Enrollment).where(Enrollment.student_id == student.id, Enrollment.materia_id == materia_id)
             )
@@ -512,21 +524,27 @@ async def import_students(
                 session.add(enrollment)
             else:
                 enrollment.activo = True
-            _, temp_password = provision_user(
-                request.app.state.settings.auth_grpc_target,
-                email=student.email,
-                role="alumno",
-                profile_id=student.id,
-                display_name=student.nombre,
-            )
+            
+            temp_password = "".join(secrets.choice(alfabeto) for _ in range(10))
+            
+            # Reemplazo de gRPC por Cola de Mensajes
+            request.app.state.redis.lpush("evento_crear_usuario", json.dumps({
+                "email": student.email,
+                "role": "alumno",
+                "profile_id": student.id,
+                "display_name": student.nombre,
+                "temporary_password": temp_password
+            }))
+            
             send_welcome(
-                request.app.state.redis,  # <-- CAMBIO: Le pasamos Redis
+                request.app.state.redis,
                 alumno_id=student.id,
                 materia_id=materia_id,
                 email=student.email,
                 nombre=student.nombre,
                 temporary_password=temp_password,
             )
+            
     return ok(
         {
             "materia_id": materia_id,
@@ -536,7 +554,6 @@ async def import_students(
         },
         "Alumnos importados",
     )
-
 
 @app.get("/alumnos/materia/{materia_id}")
 def list_students_by_subject(

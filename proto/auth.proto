@@ -6,7 +6,7 @@ service AuthService {
   rpc ValidateToken(TokenRequest) returns (UserClaims);
   rpc GetUserById(UserIdRequest) returns (UserProfile);
   rpc CheckRole(RoleCheckRequest) returns (BoolReply);
-  rpc ProvisionUser(ProvisionUserRequest) returns (ProvisionUserResponse);
+  //rpc ProvisionUser(ProvisionUserRequest) returns (ProvisionUserResponse);
 }
 
 message TokenRequest {
@@ -43,12 +43,12 @@ message UserProfile {
   bool is_active = 5;
 }
 
-message ProvisionUserRequest {
+/*message ProvisionUserRequest {
   string email = 1;
   string role = 2;
   int64 profile_id = 3;
   string display_name = 4;
-}
+}*/
 
 message ProvisionUserResponse {
   bool created = 1;

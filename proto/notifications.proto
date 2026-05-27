@@ -1,12 +1,12 @@
-syntax = "proto3";
+/*syntax = "proto3";
 
 package agm.notifications;
 
 service NotificationsService {
-  rpc SendBienvenida(BienvenidaRequest) returns (BoolReply);
-  rpc SendBajaNotif(BajaRequest) returns (BoolReply);
-  rpc SendCierreMateria(CierreMateriaRequest) returns (BoolReply);
-  rpc SendResetPassword(ResetPasswordRequest) returns (BoolReply);
+  //rpc SendBienvenida(BienvenidaRequest) returns (BoolReply);
+  //rpc SendBajaNotif(BajaRequest) returns (BoolReply);
+  //rpc SendCierreMateria(CierreMateriaRequest) returns (BoolReply);
+  //rpc SendResetPassword(ResetPasswordRequest) returns (BoolReply);
 }
 
 message BienvenidaRequest {
@@ -42,3 +42,4 @@ message BoolReply {
   bool ok = 1;
   string message = 2;
 }
+*/
