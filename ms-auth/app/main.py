@@ -312,12 +312,12 @@ def shutdown_event() -> None:
         grpc_server.stop(grace=1)
 
 
-@app.get("/auth/health")
+@app.get("/health")
 def health() -> dict:
     return ok({"service": "auth", "status": "ok"})
 
 
-@app.post("/auth/login")
+@app.post("/login")
 def login(payload: LoginRequest, request: Request) -> dict:
     session_factory = get_session_factory(request)
     settings: Settings = request.app.state.settings
@@ -328,7 +328,7 @@ def login(payload: LoginRequest, request: Request) -> dict:
         return ok(create_token_payload(user, settings).model_dump(), "Login correcto")
 
 
-@app.post("/auth/refresh-token")
+@app.post("/refresh-token")
 def refresh_token(request: Request, user=Depends(current_user)) -> dict:
     session_factory = get_session_factory(request)
     settings: Settings = request.app.state.settings
@@ -337,7 +337,7 @@ def refresh_token(request: Request, user=Depends(current_user)) -> dict:
         return ok(create_token_payload(db_user, settings).model_dump(), "Token renovado")
 
 
-@app.post("/auth/forgot-password")
+@app.post("/forgot-password")
 def forgot_password(payload: ForgotPasswordRequest, request: Request) -> dict:
     session_factory = get_session_factory(request)
     with session_scope(session_factory) as session:
@@ -362,7 +362,7 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request) -> dict:
         return ok({"reset_token": token}, "Token de recuperación generado")
 
 
-@app.post("/auth/reset-password")
+@app.post("/reset-password")
 def reset_password(payload: ResetPasswordRequest, request: Request) -> dict:
     session_factory = get_session_factory(request)
     with session_scope(session_factory) as session:
@@ -377,6 +377,6 @@ def reset_password(payload: ResetPasswordRequest, request: Request) -> dict:
         return ok(None, "Contraseña actualizada")
 
 
-@app.get("/auth/me")
+@app.get("/me")
 def me(user=Depends(current_user)) -> dict:
     return ok(user)
