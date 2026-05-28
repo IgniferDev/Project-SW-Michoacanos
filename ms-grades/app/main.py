@@ -290,7 +290,45 @@ def list_activities(materia_id: int, request: Request, user=Depends(require_role
             for act in activities
         ])
 
+@app.put("/actividades/{activity_id}")
+def update_activity(activity_id: int, payload: ActivityUpdatePayload, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
+    session_factory = request.app.state.session_factory
+    with session_scope(session_factory) as session:
+        activity = session.get(Activity, activity_id)
+        if activity is None:
+            raise HTTPException(status_code=404, detail="Actividad no encontrada")
+        
+        # Validación de seguridad: Asegurarnos de que la nueva categoría exista y pertenezca a la misma materia
+        category = session.get(WeightCategory, payload.categoria_id)
+        if category is None or category.materia_id != activity.materia_id:
+            raise HTTPException(status_code=400, detail="La categoría es inválida o no pertenece a esta materia")
+        
+        # Actualización de los datos
+        activity.categoria_id = payload.categoria_id
+        activity.nombre = payload.nombre
+        activity.max_puntos = payload.max_puntos
+        
+        return ok({"id": activity.id}, "Actividad actualizada correctamente")
 
+
+@app.delete("/actividades/{activity_id}")
+def delete_activity(activity_id: int, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
+    session_factory = request.app.state.session_factory
+    with session_scope(session_factory) as session:
+        activity = session.get(Activity, activity_id)
+        if activity is None:
+            raise HTTPException(status_code=404, detail="Actividad no encontrada")
+        
+        # Mantenimiento de integridad: Primero eliminamos todas las calificaciones 
+        # que los alumnos tenían en esta actividad para no dejar datos huérfanos.
+        grades = session.scalars(select(Grade).where(Grade.activity_id == activity_id)).all()
+        for grade in grades:
+            session.delete(grade)
+            
+        # Finalmente, eliminamos la actividad
+        session.delete(activity)
+        
+        return ok(None, "Actividad y sus calificaciones eliminadas")
 
 
 @app.post("/calificaciones")
