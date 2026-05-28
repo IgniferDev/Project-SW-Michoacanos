@@ -81,6 +81,17 @@ def build_message(kind: str, payload: dict[str, Any]) -> tuple[str, str, str]:
             f"Tu clave temporal es: {payload.get('temporary_password') or 'ya existente'}\n"
         )
         return payload["email"], subject, body
+    
+    if kind == "bienvenida_docente":
+        subject = "AGM | Acceso a plataforma Docente"
+        body = (
+            f"Estimado(a) docente {payload['nombre']},\n\n"
+            f"Su perfil ha sido habilitado en la plataforma AGM.\n"
+            f"Su usuario es: {payload['email']}\n"
+            f"Su clave temporal es: {payload.get('temporary_password')}\n\n"
+            f"Le recomendamos cambiarla al ingresar por primera vez."
+        )
+        return payload["email"], subject, body
         
     if kind == "baja":
         subject = f"AGM | Solicitud de baja - {payload.get('materia_nombre', '')}"
@@ -226,7 +237,7 @@ import grpc
 
 def listen_to_redis(app_state):
     # Lista de buzones (colas) que vamos a revisar constantemente
-    colas = ["evento_bienvenida", "evento_baja", "evento_cierre", "evento_reset"]
+    colas = ["evento_bienvenida", "evento_bienvenida_docente", "evento_baja", "evento_cierre", "evento_reset"]
     print("MS-Notifications: Conectado a Redis. Esperando mensajes en la cola...", flush=True)
     
     while True:
@@ -246,6 +257,8 @@ def listen_to_redis(app_state):
                 with session_scope(app_state.session_factory) as session:
                     if canal == "evento_bienvenida":
                         process_notification(session, app_state.settings, "bienvenida", payload)
+                    elif canal == "evento_bienvenida_docente":
+                        process_notification(session, app_state.settings, "bienvenida_docente", payload)
                     elif canal == "evento_baja":
                         process_notification(session, app_state.settings, "baja", payload)
                     elif canal == "evento_cierre":

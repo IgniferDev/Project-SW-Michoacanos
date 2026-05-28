@@ -427,25 +427,37 @@ async def import_teachers(
     with session_scope(session_factory) as session:
         for item in teachers:
             teacher = session.scalar(select(Teacher).where(Teacher.email == item["email"]))
+            is_new = False  # <-- BANDERA LÓGICA
+            
             if teacher is None:
                 teacher = Teacher(**item)
                 session.add(teacher)
                 session.flush()
                 created += 1
+                is_new = True # <-- MARCADO COMO NUEVO
             else:
                 for key, value in item.items():
                     setattr(teacher, key, value)
             
-            temp_password = "".join(secrets.choice(alfabeto) for _ in range(10))
-            
-            # Reemplazo de gRPC por Cola de Mensajes
-            request.app.state.redis.lpush("evento_crear_usuario", json.dumps({
-                "email": teacher.email,
-                "role": "docente",
-                "profile_id": teacher.id,
-                "display_name": teacher.nombre,
-                "temporary_password": temp_password
-            }))
+            # SOLO SI ES NUEVO generamos contraseña y notificamos
+            if is_new:
+                temp_password = "".join(secrets.choice(alfabeto) for _ in range(10))
+                
+                # 1. Empujar a ms-auth
+                request.app.state.redis.lpush("evento_crear_usuario", json.dumps({
+                    "email": teacher.email,
+                    "role": "docente",
+                    "profile_id": teacher.id,
+                    "display_name": teacher.nombre,
+                    "temporary_password": temp_password
+                }))
+                
+                # 2. Empujar a ms-notifications (Nuevo evento exclusivo para docentes)
+                request.app.state.redis.lpush("evento_bienvenida_docente", json.dumps({
+                    "email": teacher.email,
+                    "nombre": teacher.nombre,
+                    "temporary_password": temp_password
+                }))
             
     return ok({"detectados": len(teachers), "creados": created, "preview": teachers[:8]}, "Docentes importados")
 
@@ -504,6 +516,8 @@ async def import_students(
         for item in students:
             email = item.get("email") or f"{item['matricula']}@alumno.agm.local"
             student = session.scalar(select(Student).where(Student.matricula == item["matricula"]))
+            is_new = False # <-- BANDERA LÓGICA
+            
             if student is None:
                 student = Student(
                     matricula=item["matricula"],
@@ -515,6 +529,7 @@ async def import_students(
                 session.add(student)
                 session.flush()
                 imported += 1
+                is_new = True # <-- MARCADO COMO NUEVO
             
             enrollment = session.scalar(
                 select(Enrollment).where(Enrollment.student_id == student.id, Enrollment.materia_id == materia_id)
@@ -525,24 +540,31 @@ async def import_students(
             else:
                 enrollment.activo = True
             
-            temp_password = "".join(secrets.choice(alfabeto) for _ in range(10))
+            # Inicializamos en None para que el correo diga 'ya existente'
+            password_to_send = None 
             
-            # Reemplazo de gRPC por Cola de Mensajes
-            request.app.state.redis.lpush("evento_crear_usuario", json.dumps({
-                "email": student.email,
-                "role": "alumno",
-                "profile_id": student.id,
-                "display_name": student.nombre,
-                "temporary_password": temp_password
-            }))
+            # SOLO SI ES NUEVO lo mandamos a ms-auth
+            if is_new:
+                temp_password = "".join(secrets.choice(alfabeto) for _ in range(10))
+                password_to_send = temp_password # Solo le asignamos la clave nueva si de verdad es nuevo
+                
+                request.app.state.redis.lpush("evento_crear_usuario", json.dumps({
+                    "email": student.email,
+                    "role": "alumno",
+                    "profile_id": student.id,
+                    "display_name": student.nombre,
+                    "temporary_password": temp_password
+                }))
             
+            # El evento de bienvenida SIEMPRE se manda para avisarle de su nueva materia,
+            # pero si 'password_to_send' es None, el ms-notifications pondrá "ya existente"
             send_welcome(
                 request.app.state.redis,
                 alumno_id=student.id,
                 materia_id=materia_id,
                 email=student.email,
                 nombre=student.nombre,
-                temporary_password=temp_password,
+                temporary_password=password_to_send, 
             )
             
     return ok(
