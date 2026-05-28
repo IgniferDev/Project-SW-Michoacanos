@@ -71,51 +71,108 @@ class SimpleMailPayload(BaseModel):
     alumnos_emails: list[str] = [] # <-- Coincide con el JSON de Postman
 
 
+def get_html_template(title: str, content: str) -> str:
+    # Plantilla HTML con CSS en línea (obligatorio para que funcione en Gmail/Outlook)
+    return f"""
+    <!DOCTYPE html>
+    <html>
+        <body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f7f6; padding: 30px 10px; margin: 0;">
+            <div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                
+                <!-- Encabezado -->
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h2 style="color: #003b5c; border-bottom: 3px solid #00b5e2; display: inline-block; padding-bottom: 10px; margin: 0;">{title}</h2>
+                </div>
+                
+                <!-- Contenido Dinámico -->
+                <div style="color: #444444; line-height: 1.8; font-size: 16px;">
+                    {content}
+                </div>
+                
+                <!-- Botón de Acción (URL del Servidor) -->
+                <div style="margin-top: 40px; text-align: center;">
+                    <a href="http://3.95.61.121/" style="background-color: #003b5c; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Ingresar a la Plataforma</a>
+                </div>
+                
+                <!-- Pie de página -->
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eeeeee; font-size: 12px; color: #999999; text-align: center;">
+                    <p>Sistema de Gestión Académica (AGM)<br>Este es un correo automático, por favor no responda a esta dirección.</p>
+                </div>
+            </div>
+        </body>
+    </html>
+    """
+
 def build_message(kind: str, payload: dict[str, Any]) -> tuple[str, str, str]:
     if kind == "bienvenida":
         subject = "AGM | Bienvenida al sistema"
-        body = (
-            f"Hola {payload['nombre']},\n\n"
-            f"Ya quedaste registrado(a) en AGM para la materia {payload['materia_id']}.\n"
-            f"Tu usuario es: {payload['email']}\n"
-            f"Tu clave temporal es: {payload.get('temporary_password') or 'ya existente'}\n"
+        clave_mostrar = payload.get('temporary_password') or '<em>La que ya tenías asignada</em>'
+        content = (
+            f"<p>Hola <strong>{payload['nombre']}</strong>,</p>"
+            f"<p>Has sido registrado(a) exitosamente en AGM para la materia <strong>{payload['materia_id']}</strong>.</p>"
+            f"<div style='background-color: #f8f9fa; padding: 20px; border-left: 4px solid #00b5e2; margin: 25px 0; border-radius: 4px;'>"
+            f"<p style='margin: 0 0 10px 0;'><strong>Usuario:</strong> {payload['email']}</p>"
+            f"<p style='margin: 0;'><strong>Clave temporal:</strong> <span style='font-family: monospace; font-size: 18px; color: #d9534f;'>{clave_mostrar}</span></p>"
+            f"</div>"
         )
+        body = get_html_template("Bienvenida a AGM", content)
         return payload["email"], subject, body
-    
+
     if kind == "bienvenida_docente":
         subject = "AGM | Acceso a plataforma Docente"
-        body = (
-            f"Estimado(a) docente {payload['nombre']},\n\n"
-            f"Su perfil ha sido habilitado en la plataforma AGM.\n"
-            f"Su usuario es: {payload['email']}\n"
-            f"Su clave temporal es: {payload.get('temporary_password')}\n\n"
-            f"Le recomendamos cambiarla al ingresar por primera vez."
+        content = (
+            f"<p>Estimado(a) docente <strong>{payload['nombre']}</strong>,</p>"
+            f"<p>Su perfil ha sido habilitado en la plataforma académica.</p>"
+            f"<div style='background-color: #f8f9fa; padding: 20px; border-left: 4px solid #00b5e2; margin: 25px 0; border-radius: 4px;'>"
+            f"<p style='margin: 0 0 10px 0;'><strong>Usuario:</strong> {payload['email']}</p>"
+            f"<p style='margin: 0;'><strong>Clave temporal:</strong> <span style='font-family: monospace; font-size: 18px; color: #d9534f;'>{payload.get('temporary_password')}</span></p>"
+            f"</div>"
+            f"<p style='color: #666;'><em>Le recomendamos cambiar su contraseña en la sección de perfil al ingresar por primera vez.</em></p>"
         )
+        body = get_html_template("Perfil Docente Habilitado", content)
         return payload["email"], subject, body
-        
+
     if kind == "baja":
         subject = f"AGM | Solicitud de baja - {payload.get('materia_nombre', '')}"
-        body = (
-            f"Estimado docente,\n\n"
-            f"El alumno {payload.get('alumno_nombre', '')} ha solicitado la baja de la materia:\n"
-            f"- Materia: {payload.get('materia_nombre', '')} (ID: {payload.get('materia_id', '')})\n"
-            f"- Motivo: {payload.get('motivo', '')}\n\n"
-            f"El sistema ha actualizado el pase de lista automáticamente."
+        content = (
+            f"<p>Estimado docente,</p>"
+            f"<p>El alumno <strong>{payload.get('alumno_nombre', '')}</strong> ha solicitado formalmente la baja de su materia:</p>"
+            f"<div style='background-color: #fff3cd; padding: 20px; border: 1px solid #ffeeba; margin: 25px 0; border-radius: 4px;'>"
+            f"<ul style='margin: 0; padding-left: 20px;'>"
+            f"<li style='margin-bottom: 10px;'><strong>Materia:</strong> {payload.get('materia_nombre', '')} (ID: {payload.get('materia_id', '')})</li>"
+            f"<li><strong>Motivo reportado:</strong> <em>\"{payload.get('motivo', '')}\"</em></li>"
+            f"</ul>"
+            f"</div>"
+            f"<p>El sistema ha actualizado el pase de lista de manera automática.</p>"
         )
+        body = get_html_template("Notificación de Baja", content)
         return payload.get("recipient", "docente@agm.local"), subject, body
-        
+
     if kind == "cierre-materia":
         subject = f"AGM | Cierre de materia - {payload.get('materia_nombre')}"
-        body = f"La materia {payload.get('materia_nombre') or payload.get('materia_id')} fue cerrada y sus calificaciones publicadas."
-        
-        # Unimos la lista de correos para el destinatario
+        content = (
+            f"<p>Estimado(a) estudiante,</p>"
+            f"<p>Te notificamos que la materia <strong>{payload.get('materia_nombre') or payload.get('materia_id')}</strong> ha finalizado formalmente.</p>"
+            f"<p>Las calificaciones finales ya han sido procesadas, guardadas y publicadas por tu docente.</p>"
+            f"<p>Puedes consultar tu promedio final ingresando a tu portal de calificaciones.</p>"
+        )
+        body = get_html_template("Cierre de Evaluación", content)
         lista = payload.get("alumnos_emails", [])
         recipient = ", ".join(lista) if lista else "grupo@agm.local"
-        
         return recipient, subject, body
-        
+
+    # kind == "reset-password"
     subject = "AGM | Recuperación de contraseña"
-    body = f"Usa este token para restablecer tu contraseña: {payload['reset_token']}"
+    content = (
+        f"<p>Hola,</p>"
+        f"<p>Hemos recibido una solicitud para recuperar el acceso a tu cuenta.</p>"
+        f"<p>Tu código de recuperación seguro es:</p>"
+        f"<div style='background-color: #e2e3e5; text-align: center; padding: 20px; margin: 25px 0; border-radius: 6px;'>"
+        f"<span style='font-family: monospace; font-size: 24px; font-weight: bold; letter-spacing: 2px; color: #383d41;'>{payload['reset_token']}</span>"
+        f"</div>"
+        f"<p>Copia y pega este código en la ventana de recuperación para elegir una nueva contraseña. Si tú no solicitaste esto, puedes ignorar este correo de forma segura.</p>"
+    )
+    body = get_html_template("Restablecer Contraseña", content)
     return payload["email"], subject, body
 
 
@@ -126,7 +183,10 @@ def deliver_email(settings: Settings, recipient: str, subject: str, body: str) -
     message["From"] = settings.smtp_from
     message["To"] = recipient
     message["Subject"] = subject
-    message.set_content(body)
+
+    # EL CAMBIO ESTÁ AQUÍ: Agregamos subtype='html'
+    message.set_content(body, subtype='html')
+    
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
         if settings.smtp_tls:
             server.starttls()
