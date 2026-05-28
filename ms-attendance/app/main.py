@@ -288,6 +288,55 @@ def close_session(session_id: int, request: Request, user=Depends(require_roles(
             attendance_session.status = "cerrada"
     return ok(None, "Sesión cerrada")
 
+@app.get("/sesiones/activa/{materia_id}")
+def get_active_session(materia_id: int, request: Request, user=Depends(require_roles("admin", "docente"))) -> dict:
+    active_session_ids: list[int] = []
+    
+    # 1. Buscamos en Redis si hay alguna sesión viva para esta materia
+    for key in request.app.state.redis.scan_iter("session:*"):
+        active_materia = request.app.state.redis.get(key)
+        if active_materia and int(active_materia) == materia_id:
+            # La llave tiene el formato "session:123", extraemos el número
+            session_id = int(key.split(":")[1])
+            active_session_ids.append(session_id)
+
+    # Si Redis dice que no hay nada, respondemos rápido al frontend
+    if not active_session_ids:
+        return ok(None)
+
+    # 2. Si hay algo en Redis, vamos a la BD para traer los detalles (fecha de inicio y fin)
+    session_factory = request.app.state.session_factory
+    with session_scope(session_factory) as session:  # <-- Corregido
+        rows = session.scalars(
+            select(AttendanceSession).where(
+                AttendanceSession.id.in_(active_session_ids),  # <-- Corregido (.in_)
+                AttendanceSession.materia_id == materia_id,
+                AttendanceSession.status == "abierta",
+            )
+        ).all()
+
+        # 3. Doble validación: Asegurarnos de que el tiempo de cierre aún no pasa
+        active = [
+            row for row in rows
+            if row.closes_at > now_utc()
+        ]
+        
+        if not active:
+            return ok(None)
+
+        # Si por alguna razón hubiera más de una, tomamos la que cierre al último
+        current = sorted(active, key=lambda item: item.closes_at, reverse=True)[0]
+        
+        return ok(
+            {
+                "session_id": current.id,
+                "materia_id": current.materia_id,
+                "started_at": current.started_at.isoformat(),
+                "closes_at": current.closes_at.isoformat(),
+                "status": current.status,
+            },
+            "Sesión activa recuperada"
+        )
 
 @app.get("/asistencias/{materia_id}/hoy")
 def attendance_today(materia_id: int, request: Request, user=Depends(require_roles("admin", "docente", "alumno"))) -> dict:
