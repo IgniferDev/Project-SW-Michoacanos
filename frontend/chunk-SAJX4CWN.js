@@ -1,1 +1,0 @@
-import{fc as s}from"./chunk-J53HKBLR.js";function i(e,t="No fue posible completar la operacion."){return e instanceof s?(typeof e.error?.detail=="string"?e.error.detail:typeof e.error?.message=="string"?e.error.message:"")||e.message||t:e instanceof Error&&e.message||t}export{i as a};
