@@ -71,6 +71,10 @@ class WeightItem(BaseModel):
 class WeightPayload(BaseModel):
     items: list[WeightItem]
 
+class ActivityUpdatePayload(BaseModel):
+    categoria_id: int
+    nombre: str
+    max_puntos: float = Field(default=100, gt=0)
 
 class ActivityPayload(BaseModel):
     materia_id: int
@@ -265,6 +269,28 @@ def create_activity(payload: ActivityPayload, request: Request, user=Depends(req
         session.add(activity)
         session.flush()
         return ok({"id": activity.id}, "Actividad creada")
+
+
+@app.get("/actividades/materia/{materia_id}")
+def list_activities(materia_id: int, request: Request, user=Depends(require_roles("admin", "docente", "alumno"))) -> dict:
+    session_factory = request.app.state.session_factory
+    with session_scope(session_factory) as session:
+        # Recuperamos todas las actividades de la materia solicitada
+        activities = session.scalars(select(Activity).where(Activity.materia_id == materia_id)).all()
+        
+        # Devolvemos una lista de diccionarios limpios al frontend
+        return ok([
+            {
+                "id": act.id,
+                "materia_id": act.materia_id,
+                "categoria_id": act.categoria_id,
+                "nombre": act.nombre,
+                "max_puntos": act.max_puntos
+            }
+            for act in activities
+        ])
+
+
 
 
 @app.post("/calificaciones")
